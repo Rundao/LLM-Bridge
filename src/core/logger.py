@@ -3,6 +3,7 @@ from logging.handlers import RotatingFileHandler
 from datetime import datetime
 import json
 from ..config.config import LOG_CONFIG
+import os
 
 class RequestLogger:
     def __init__(self):
@@ -11,6 +12,11 @@ class RequestLogger:
         # 从配置读取日志级别
         log_level = LOG_CONFIG.get("log_level", "info").upper()
         self.logger.setLevel(getattr(logging, log_level))
+
+        # 检查log的文件路径是否存在，如果不存在则创建
+        log_dir = os.path.dirname(LOG_CONFIG["log_file"])
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
         
         # 配置日志轮转
         handler = RotatingFileHandler(
