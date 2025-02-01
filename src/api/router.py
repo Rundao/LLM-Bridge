@@ -1,0 +1,253 @@
+import aiohttp
+import time
+import json
+from typing import Optional, Dict, Any, AsyncGenerator
+from ..config.config import PROVIDER_CONFIG, PROXY_CONFIG, ACCESS_API_KEYS, PROVIDER_MODELS
+from ..core.logger import logger
+from ..core.token_counter import token_counter
+
+# 模型名称解析
+def parse_model_name(model: str) -> tuple[str, str]:
+    """解析模型名称，返回(provider_name, model_name)元组"""
+    if "/" in model:
+        provider, model_name = model.split("/", 1)
+        return provider, model_name
+    # 默认使用deepseek
+    return "deepseek", model
+
+class Router:
+    def __init__(self):
+        self.session = None
+
+    async def get_session(self):
+        if self.session is None:
+            self.session = aiohttp.ClientSession()
+        return self.session
+
+    async def _validate_request(self, model: str, api_key: str, payload: Dict[str, Any]):
+        """验证请求参数并返回必要的配置信息"""
+        # 解析模型名称
+        provider, model_name = parse_model_name(model)
+        self.model = model_name
+        
+        # 验证服务商是否存在
+        if provider not in PROVIDER_CONFIG:
+            logger.log_request_error(
+                provider=provider,
+                model=model,
+                status_code=400,
+                error_message=f"Unsupported provider: {provider}",
+                messages=payload.get("messages", [])
+            )
+            raise ValueError(f"Unsupported provider: {provider}")
+
+        # 验证模型是否在服务商支持的模型列表中
+        if model_name not in PROVIDER_MODELS.get(provider, []):
+            logger.log_request_error(
+                provider=provider,
+                model=model,
+                status_code=400,
+                error_message=f"Model {model_name} not supported by provider {provider}",
+                messages=payload.get("messages", [])
+            )
+            raise ValueError(f"Model {model_name} not supported by provider {provider}")
+
+        provider_config = PROVIDER_CONFIG.get(provider)
+
+        # 验证接入API密钥
+        if api_key not in ACCESS_API_KEYS:
+            logger.log_request_error(
+                provider="unknown",
+                model=model,
+                status_code=401,
+                error_message="Invalid access API key",
+                messages=payload.get("messages", [])
+            )
+            raise PermissionError("Invalid access API key")
+
+        # 获取服务商配置
+        if not provider_config:
+            logger.log_request_error(
+                provider="unknown",
+                model=model,
+                status_code=400,
+                error_message=f"Provider not configured for model: {model}",
+                messages=payload.get("messages", [])
+            )
+            raise ValueError(f"Provider not configured for model: {model}")
+
+        return provider, provider_config
+
+    async def _prepare_request(self, provider_config: Dict[str, Any], payload: Dict[str, Any]):
+        """准备请求参数"""
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {provider_config['api_key']}"
+        }
+        
+        if not isinstance(payload, dict):
+            payload = dict(payload)
+
+        # 如果需要代理,只返回 https 代理地址字符串
+        proxy = PROXY_CONFIG["https"] if provider_config["requires_proxy"] else None
+        return headers, proxy
+
+    async def route_request_stream(self, model: str, api_key: str, payload: Dict[str, Any]) -> AsyncGenerator[str, None]:
+        """处理流式请求"""
+        provider, provider_config = await self._validate_request(model, api_key, payload)
+        headers, proxies = await self._prepare_request(provider_config, payload)
+        
+        # 修改 payload 中的 model 字段
+        payload["model"] = self.model
+        
+        messages = payload.get("messages", [])
+        input_tokens = token_counter.count_message_tokens(messages, self.model)
+        
+        # 记录请求开始
+        logger.log_request_start(provider, model, messages, is_stream=True)
+        
+        try:
+            start_time = time.time()
+            session = await self.get_session()
+            async with session.post(
+                provider_config['base_url'],
+                json=payload,
+                headers=headers,
+                proxy=proxies
+            ) as response:
+                full_response = []
+                buffer = ""
+                async for chunk in response.content:
+                    if chunk:
+                        buffer += chunk.decode("utf-8")
+                        while "\n\n" in buffer:
+                            message, buffer = buffer.split("\n\n", 1)
+                            if message.startswith("data: "):
+                                message = message[6:]
+                            if message.strip() and message.strip() != "[DONE]":
+                                try:
+                                    msg_data = json.loads(message)
+                                    if "choices" in msg_data and msg_data["choices"]:
+                                        delta = msg_data["choices"][0].get("delta", {})
+                                        # 只有当delta中有content字段时才处理
+                                        content = delta.get("content")
+                                        if content is not None:  # 允许空字符串
+                                            full_response.append(content)
+                                except (json.JSONDecodeError, IndexError, KeyError) as e:
+                                    logger.log_request_error(
+                                        provider=provider,
+                                        model=model,
+                                        status_code=500,
+                                        error_message=f"Error parsing stream chunk: {str(e)}",
+                                        messages=messages
+                                    )
+                                # 无论是否解析成功，都转发原始消息
+                                yield message
+
+                if buffer.strip():
+                    yield buffer
+
+                # 流式响应完成后记录日志
+                duration = time.time() - start_time
+                complete_response = "".join(full_response)
+                output_tokens = token_counter.count_completion_tokens(complete_response, self.model)
+                logger.log_request_complete(
+                    provider=provider,
+                    model=model,
+                    status_code=response.status,
+                    duration=duration,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    messages=messages,
+                    response=complete_response,
+                    is_stream=True
+                )
+        except Exception as e:
+            logger.log_request_error(
+                provider=provider,
+                model=model,
+                status_code=500,
+                error_message=str(e),
+                messages=messages
+            )
+            raise
+
+    async def route_request(self, model: str, api_key: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """处理非流式请求"""
+        if payload.get("stream", False):
+            raise ValueError("Use route_request_stream for streaming requests")
+            
+        provider, provider_config = await self._validate_request(model, api_key, payload)
+        headers, proxies = await self._prepare_request(provider_config, payload)
+        
+        # 修改 payload 中的 model 字段
+        payload["model"] = self.model
+        
+        messages = payload.get("messages", [])
+        input_tokens = token_counter.count_message_tokens(messages, self.model)
+        
+        # 记录请求开始
+        logger.log_request_start(provider, model, messages, is_stream=False)
+        
+        try:
+            start_time = time.time()
+            session = await self.get_session()
+            async with session.post(
+                provider_config['base_url'],
+                json=payload,
+                headers=headers,
+                proxy=proxies
+            ) as response:
+                response_data = await response.json()
+                duration = time.time() - start_time
+
+                completion_text = response_data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                output_tokens = token_counter.count_completion_tokens(completion_text, self.model)
+
+                logger.log_request_complete(
+                    provider=provider,
+                    model=model,
+                    status_code=response.status,
+                    duration=duration,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    messages=messages,
+                    response=response_data,
+                    is_stream=False
+                )
+
+                return response_data
+        except Exception as e:
+            logger.log_request_error(
+                provider=provider,
+                model=model,
+                status_code=500,
+                error_message=str(e),
+                messages=messages
+            )
+            raise
+        except aiohttp.ClientError as e:
+            error_msg = f"API request failed: {str(e)}"
+            logger.log_request_error(
+                provider=provider,
+                model=model,
+                status_code=500,
+                error_message=error_msg,
+                messages=messages
+            )
+            raise RuntimeError(error_msg)
+        except Exception as e:
+            error_msg = f"Unexpected error: {str(e)}"
+            logger.log_request_error(
+                provider=provider,
+                model=model,
+                status_code=500,
+                error_message=error_msg,
+                messages=messages
+            )
+            raise RuntimeError(error_msg)
+
+    async def close(self):
+        if self.session:
+            await self.session.close()
+            self.session = None
