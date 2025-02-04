@@ -2,9 +2,9 @@ import aiohttp
 import time
 import json
 from typing import Optional, Dict, Any, AsyncGenerator
-from ..config.config import PROVIDER_CONFIG, PROXY_CONFIG, ACCESS_API_KEYS, PROVIDER_MODELS
-from ..core.logger import logger
-from ..core.token_counter import token_counter
+from config.config import PROVIDER_CONFIG, PROXY_CONFIG, ACCESS_API_KEYS, PROVIDER_MODELS
+from core.logger import logger
+from core.token_counter import token_counter
 
 # 模型名称解析
 def parse_model_name(model: str) -> tuple[str, str]:
@@ -93,19 +93,15 @@ class Router:
         return headers, proxy
 
     async def route_request_stream(self, model: str, api_key: str, payload: Dict[str, Any]) -> AsyncGenerator[str, None]:
-        """处理流式请求"""
+        """处理流式请求，支持 SSE 协议"""
+        
         provider, provider_config = await self._validate_request(model, api_key, payload)
         headers, proxies = await self._prepare_request(provider_config, payload)
-        
-        # 修改 payload 中的 model 字段
-        payload["model"] = self.model
-        
+        payload["model"] = self.model  # 修改 payload 中 model 字段
         messages = payload.get("messages", [])
         input_tokens = token_counter.count_message_tokens(messages, self.model)
-        
-        # 记录请求开始
         logger.log_request_start(provider, model, messages, is_stream=True)
-        
+
         try:
             start_time = time.time()
             session = await self.get_session()
@@ -115,39 +111,74 @@ class Router:
                 headers=headers,
                 proxy=proxies
             ) as response:
-                full_response = []
-                buffer = ""
+                full_response = []      # 用于累计所有有效文本
+                buffer = ""             # 保存数据缓冲
+                current_event = []      # 收集当前 SSE 事件行
+
+                # 遍历每个数据块，注意 decode 时使用 errors='replace'
                 async for chunk in response.content:
                     if chunk:
-                        buffer += chunk.decode("utf-8")
-                        while "\n\n" in buffer:
-                            message, buffer = buffer.split("\n\n", 1)
-                            if message.startswith("data: "):
-                                message = message[6:]
-                            if message.strip() and message.strip() != "[DONE]":
-                                try:
-                                    msg_data = json.loads(message)
-                                    if "choices" in msg_data and msg_data["choices"]:
-                                        delta = msg_data["choices"][0].get("delta", {})
-                                        # 只有当delta中有content字段时才处理
-                                        content = delta.get("content")
-                                        if content is not None:  # 允许空字符串
-                                            full_response.append(content)
-                                except (json.JSONDecodeError, IndexError, KeyError) as e:
-                                    logger.log_request_error(
-                                        provider=provider,
-                                        model=model,
-                                        status_code=500,
-                                        error_message=f"Error parsing stream chunk: {str(e)}",
-                                        messages=messages
-                                    )
-                                # 无论是否解析成功，都转发原始消息
-                                yield message
+                        buffer += chunk.decode("utf-8", errors="replace")
+                        
+                        # 逐行处理，注意可能存在残留未完整一行的数据
+                        while True:
+                            newline_pos = buffer.find("\n")
+                            if newline_pos == -1:
+                                break
+                            line = buffer[:newline_pos].strip()
+                            buffer = buffer[newline_pos + 1:]
+                            
+                            # 空行表示当前 SSE 事件结束
+                            if line == "":
+                                if current_event:
+                                    # 合并当前事件数据
+                                    event_data = "\n".join(current_event)
+                                    current_event = []
+                                    
+                                    # 如果是结束标识 [DONE]，则跳过
+                                    if event_data == "[DONE]":
+                                        continue
 
+                                    try:
+                                        msg_data = json.loads(event_data)
+                                        # 如果解析结果含有 choices 部分，则提取 content 字段
+                                        if "choices" in msg_data and msg_data["choices"]:
+                                            delta = msg_data["choices"][0].get("delta", {})
+                                            content = delta.get("content")
+                                            if content is not None:
+                                                full_response.append(content)
+                                        # 转发符合 SSE 格式的完整事件
+                                        yield f"data: {json.dumps(msg_data)}\n\n"
+                                    except (json.JSONDecodeError, IndexError, KeyError) as e:
+                                        # 仅记录日志，不直接将错误信息暴露给客户端；
+                                        logger.log_request_error(
+                                            provider=provider,
+                                            model=model,
+                                            status_code=500,
+                                            error_message=f"解析流数据错误: {str(e)}",
+                                            messages=messages
+                                        )
+                                        # 可选择转发一个标准错误提示（也可以选择不转发）
+                                        yield f"data: {json.dumps({'error': '解析数据异常'})}\n\n"
+                                continue
+                            
+                            # 跳过以 ":" 开头的注释/心跳行（如 ": keep-alive"）
+                            if line.startswith(":"):
+                                logger.debug(f"Received SSE heartbeat: {line[1:].strip()}")
+                                continue
+                            
+                            # 只处理以 "data:" 开头的有效行；其他行直接加入到当前事件中
+                            if line.startswith("data:"):
+                                data_content = line[len("data:"):].strip()
+                                current_event.append(data_content)
+                            else:
+                                current_event.append(line)
+                
+                # 流结束后，若 buffer 中仍有数据，则尝试处理或发出警告
                 if buffer.strip():
-                    yield buffer
+                    logger.warning("Stream ended but received incomplete data in buffer.")
+                    yield f"data: {json.dumps({'warning': 'incomplete data'})}\n\n"
 
-                # 流式响应完成后记录日志
                 duration = time.time() - start_time
                 complete_response = "".join(full_response)
                 output_tokens = token_counter.count_completion_tokens(complete_response, self.model)

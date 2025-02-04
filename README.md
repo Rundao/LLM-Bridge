@@ -29,7 +29,7 @@ LLM Bridge is a centralized service for managing and proxying API requests to la
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/llm-bridge.git
+   git clone https://github.com/Rundao/LLM-Bridge.git
    cd llm-bridge
    ```
 
@@ -61,7 +61,7 @@ LLM Bridge is a centralized service for managing and proxying API requests to la
 
 4. Start the service
    ```bash
-   uvicorn src.main:app --reload --port 1219
+   cd src && uvicorn main:app --reload --port 1219
    ```
    The service will be available at http://localhost:1219.
 
@@ -88,7 +88,7 @@ Example using [Cherry Studio](https://cherry-ai.com/):
 - Enter `http://127.0.0.1:1219` in the "API URL" field.
     - Some software (such as [Cherry Studio](https://cherry-ai.com/)) will automatically supplement `/v1/chat/completions`, please adjust according to the actual situation
 - Click "Manage" to add models.
-- Click "Save" and you can start using the model.
+- Check the connectivity and start using it.
 
 ### Supported Models
 
@@ -196,11 +196,12 @@ LOG_CONFIG = {
 2. Include the provider's configuration in `PROVIDER_CONFIG`.
 3. Ensure the corresponding API key is added to your `.env` file.
 
-## TODO
+## TODOs
 
 Planned features for upcoming versions:
 
 ### 1. Usage Statistics
+- [ ] Token counting for multimodal models
 - [ ] Token usage statistics and analysis
 - [ ] Call count and cost statistics per model
 - [ ] Visual charts to display usage

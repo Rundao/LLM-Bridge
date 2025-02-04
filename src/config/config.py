@@ -23,8 +23,6 @@ except Exception as e:
 PROVIDER_MODELS = {
     "openai": ["gpt-4o", 
                "gpt-4o-mini", 
-               "o1", 
-               "o1-mini",
                "o3-mini"],
     "gemini": ["gemini-exp-1206", 
                "gemini-2.0-flash-exp", 
@@ -65,9 +63,9 @@ PROXY_CONFIG = {
     "https": "socks5://127.0.0.1:7890"
 }
 
-# 日志配置
+# 日志配置 | log configuration
 LOG_CONFIG = {
-    "log_file": "logs/requests.log",
+    "log_file": "../logs/requests.log",
     "max_file_size": 10485760,  # 10MB
     "backup_count": 5,
     "log_level": "debug"  # 可选值：debug, info

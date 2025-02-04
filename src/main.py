@@ -1,8 +1,8 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import StreamingResponse
-from .api.router import Router
-from .core.logger import logger
-from .config.config import PROVIDER_MODELS
+from api.router import Router
+from core.logger import logger
+from config.config import PROVIDER_MODELS
 import time
 import json
 
@@ -50,6 +50,9 @@ async def chat_completions(request: Request):
         raise HTTPException(status_code=401, detail=str(e))
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, 
+                            detail=f"Internal server error: {str(e)}")
     
     
 @app.get("/v1/models")

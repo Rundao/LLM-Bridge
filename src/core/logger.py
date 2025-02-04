@@ -2,7 +2,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
 import json
-from ..config.config import LOG_CONFIG
+from config.config import LOG_CONFIG
 import os
 
 class RequestLogger:
@@ -94,6 +94,11 @@ class RequestLogger:
         if messages and self.logger.level <= logging.DEBUG:
             log_data["messages"] = messages
         self.logger.error(json.dumps(log_data, ensure_ascii=False))
+    
+    def debug(self, message):
+        print(message)
+        # TODO: 保存debug信息到日志文件
+        return
 
     # 兼容旧的接口
     def log_request(self, provider, model, status_code, duration, input_tokens, output_tokens, messages, response):

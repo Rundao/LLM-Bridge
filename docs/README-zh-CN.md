@@ -27,7 +27,7 @@
 
 1. 克隆仓库
 ```bash
-git clone https://github.com/yourusername/llm-bridge.git
+git clone https://github.com/Rundao/LLM-Bridge.git
 cd llm-bridge
 ```
 
@@ -59,7 +59,7 @@ DEEPSEEK_API_KEY=your-deepseek-key
 
 4. 启动服务
 ```bash
-uvicorn src.main:app --reload --port 1219
+cd src && uvicorn main:app --reload --port 1219
 ```
 服务将在 http://localhost:1219 启动
 
@@ -80,13 +80,13 @@ curl http://localhost:1219/v1/chat/completions \
 ```
 
 使用 [Cherry Studio](https://cherry-ai.com/) 示例：
-- 在左下角点击"Settings"。
-- 在"Model Provider"中点击"Add"，并选择 Provider Type 为 "OpenAI"。
-- 在"API Key"字段中填写你的一个 `ACCESS_API_KEYS`。
-- 在"API URL"字段中填写 `http://127.0.0.1:1219`。
+- 在左下角点击"设置"。
+- 在「模型服务」中点击"添加"，并选择「提供商类型」为 "OpenAI"。
+- 在「API 密钥」字段中填写你的一个 `ACCESS_API_KEYS`。
+- 在「API 地址」字段中填写 `http://127.0.0.1:1219`。
     - 部分软件（例如 [Cherry Studio](https://cherry-ai.com/)）会自动补充 `/v1/chat/completions`，请根据实际情况调整。
-- 点击 "Manage" 以添加模型。
-- 点击 "Save"，即可开始使用该模型。
+- 点击 "管理" 以添加模型。
+- 检查连通性，开始使用。
 
 
 ### 支持的模型
@@ -201,11 +201,12 @@ LOG_CONFIG = {
 2. 在 `PROVIDER_CONFIG` 中添加供应商配置
 3. 确保在 `.env` 中添加对应的 API 密钥
 
-## TODO
+## TODOs
 
 计划开发的功能：
 
 ### 1. 消费统计功能
+- [ ] 多模态模型token计数
 - [ ] Token用量统计和分析
 - [ ] 按模型统计调用次数和费用
 - [ ] 可视化图表展示使用情况
