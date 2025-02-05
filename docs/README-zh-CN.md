@@ -210,6 +210,8 @@ LOG_CONFIG = {
 │       └── token_counter.py  # Token计数
 ├── logs/
 │   └── requests.log      # 请求日志
+├── update_api_keys.py    # 修改API秘钥的脚本
+├── update_keys.sh        # 修改API秘钥的shell脚本
 ├── .env                  # 环境变量
 └── requirements.txt      # 项目依赖
 ```
