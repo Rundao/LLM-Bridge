@@ -63,6 +63,25 @@ cd src && uvicorn main:app --reload --port 1219
 ```
 服务将在 http://localhost:1219 启动
 
+### 修改API秘钥
+
+如果需要修改 `.env` 文件中的API秘钥，可以使用项目根目录下的 `update_keys.sh` 脚本。
+
+该脚本接受4个参数，分别对应要设置的4个秘钥:
+
+1. ACCESS_API_KEYS: 访问密钥，多个密钥以逗号分隔
+2. OPENAI_API_KEY: OpenAI API密钥
+3. GOOGLE_API_KEY: Google API密钥  
+4. DEEPSEEK_API_KEY: DeepSeek API密钥
+
+使用示例:
+
+```bash
+./update_keys.sh "new-access-key1,new-access-key2" "new-openai-key" "new-google-key" "new-deepseek-key"
+```
+
+执行后，脚本会自动更新 `.env` 文件中对应的秘钥配置。
+
 ## API使用
 
 ### 聊天补全接口
