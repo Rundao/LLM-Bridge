@@ -51,11 +51,11 @@ cp .env.example .env
 ```
 ACCESS_API_KEYS=your-access-key-1,your-access-key-2
 OPENAI_API_KEY=your-openai-key
-GOOGLE_API_KEY=your-google-key
+GEMINI_API_KEY=your-gemini-key
 DEEPSEEK_API_KEY=your-deepseek-key
 ```
 其中`ACCESS_API_KEYS`为访问密钥，用于验证请求。
-`OPENAI_API_KEY`、`GOOGLE_API_KEY`、`DEEPSEEK_API_KEY`为对应供应商的API密钥，用于调用模型。
+`OPENAI_API_KEY`、`GEMINI_API_KEY`、`DEEPSEEK_API_KEY`为对应供应商的API密钥，用于调用模型。
 
 4. 启动服务
 ```bash
@@ -134,7 +134,7 @@ PROVIDER_CONFIG = {
     },
     "gemini": {
         "base_url": "https://generativelanguage.googleapis.com/v1beta/chat/completions",
-        "api_key": os.getenv("GOOGLE_API_KEY"),
+        "api_key": os.getenv("GEMINI_API_KEY"),
         "requires_proxy": True
     },
     "deepseek": {
@@ -167,10 +167,11 @@ PROXY_CONFIG = {
 
 ```python
 LOG_CONFIG = {
-    "log_file": "logs/requests.log",
+    "log_file": "../logs/requests.log",
     "max_file_size": 10485760,  # 10MB
     "backup_count": 5,
-    "log_level": "debug"
+    "log_level": "debug",
+    "logging_message": True
 }
 ```
 

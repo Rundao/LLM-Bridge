@@ -1,6 +1,7 @@
 import aiohttp
 import time
 import json
+import uuid
 from typing import Optional, Dict, Any, AsyncGenerator
 from config.config import PROVIDER_CONFIG, PROXY_CONFIG, ACCESS_API_KEYS, PROVIDER_MODELS
 from core.logger import logger
@@ -100,7 +101,7 @@ class Router:
         payload["model"] = self.model  # 修改 payload 中 model 字段
         messages = payload.get("messages", [])
         input_tokens = token_counter.count_message_tokens(messages, self.model)
-        logger.log_request_start(provider, model, messages, is_stream=True)
+        logger.log_request_start(provider, model, messages, is_stream=True, input_tokens=input_tokens)
 
         try:
             start_time = time.time()
@@ -119,6 +120,7 @@ class Router:
                 async for chunk in response.content:
                     if chunk:
                         buffer += chunk.decode("utf-8", errors="replace")
+                        logger.log_chunk(provider, model, buffer)
                         
                         # 逐行处理，注意可能存在残留未完整一行的数据
                         while True:
@@ -147,6 +149,9 @@ class Router:
                                             content = delta.get("content")
                                             if content is not None:
                                                 full_response.append(content)
+                                        # 检查是否存在id，不存在则添加
+                                        if "id" not in msg_data:
+                                            msg_data["id"] = str(uuid.uuid4())
                                         # 转发符合 SSE 格式的完整事件
                                         yield f"data: {json.dumps(msg_data)}\n\n"
                                     except (json.JSONDecodeError, IndexError, KeyError) as e:
@@ -164,7 +169,7 @@ class Router:
                             
                             # 跳过以 ":" 开头的注释/心跳行（如 ": keep-alive"）
                             if line.startswith(":"):
-                                logger.debug(f"Received SSE heartbeat: {line[1:].strip()}")
+                                logger.logger.debug(f"Received SSE heartbeat: {line[1:].strip()}")
                                 continue
                             
                             # 只处理以 "data:" 开头的有效行；其他行直接加入到当前事件中
@@ -176,7 +181,7 @@ class Router:
                 
                 # 流结束后，若 buffer 中仍有数据，则尝试处理或发出警告
                 if buffer.strip():
-                    logger.warning("Stream ended but received incomplete data in buffer.")
+                    logger.logger.warning("Stream ended but received incomplete data in buffer.")
                     yield f"data: {json.dumps({'warning': 'incomplete data'})}\n\n"
 
                 duration = time.time() - start_time
@@ -218,7 +223,7 @@ class Router:
         input_tokens = token_counter.count_message_tokens(messages, self.model)
         
         # 记录请求开始
-        logger.log_request_start(provider, model, messages, is_stream=False)
+        logger.log_request_start(provider, model, messages, is_stream=False, input_tokens=input_tokens)
         
         try:
             start_time = time.time()

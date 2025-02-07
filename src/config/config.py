@@ -24,7 +24,7 @@ PROVIDER_MODELS = {
     "openai": ["gpt-4o", 
                "gpt-4o-mini", 
                "o3-mini"],
-    "gemini": ["gemini-exp-1206", 
+    "gemini": ["gemini-2.0-pro-exp-02-05", 
                "gemini-2.0-flash-exp", 
                "gemini-2.0-flash-thinking-exp"],
     "deepseek": ["deepseek-chat",
@@ -47,7 +47,7 @@ PROVIDER_CONFIG = {
     },
     "gemini": {
         "base_url": "https://generativelanguage.googleapis.com/v1beta/chat/completions",
-        "api_key": os.getenv("GOOGLE_API_KEY"),
+        "api_key": os.getenv("GEMINI_API_KEY"),
         "requires_proxy": True
     },
     "deepseek": {
@@ -66,7 +66,8 @@ PROXY_CONFIG = {
 # 日志配置 | log configuration
 LOG_CONFIG = {
     "log_file": "../logs/requests.log",
-    "max_file_size": 10485760,  # 10MB
+    "max_file_size": 10_485_760,  # 10MB
     "backup_count": 5,
-    "log_level": "debug"  # 可选值：debug, info
+    "log_level": "debug",  # 可选值：debug, info
+    "logging_message": True
 }

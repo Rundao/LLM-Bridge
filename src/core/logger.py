@@ -7,7 +7,7 @@ import os
 
 class RequestLogger:
     def __init__(self):
-        self.logger = logging.getLogger("model_proxy")
+        self.logger = logging.getLogger("LLM_Bridge")
         
         # 从配置读取日志级别
         log_level = LOG_CONFIG.get("log_level", "info").upper()
@@ -26,13 +26,13 @@ class RequestLogger:
         )
         
         formatter = logging.Formatter(
-            "%(asctime)s - %(message)s",
+            "==== %(asctime)s | %(levelname)s ====\n%(message)s",
             datefmt="%Y-%m-%d %H:%M:%S"
         )
         handler.setFormatter(formatter)
         self.logger.addHandler(handler)
 
-    def log_request_start(self, provider, model, messages, is_stream=False):
+    def log_request_start(self, provider, model, messages, is_stream=False, input_tokens=None):
         """记录请求开始"""
         log_data = {
             "timestamp": datetime.now().isoformat(),
@@ -40,14 +40,28 @@ class RequestLogger:
             "provider": provider,
             "model": model,
             "is_stream": is_stream,
+            "input_tokens": input_tokens,
             "messages": messages
         }
-        if self.logger.level <= logging.DEBUG:
-            self.logger.debug(json.dumps(log_data, ensure_ascii=False))
+        if LOG_CONFIG.get("logging_message", False):
+            self.logger.info(json.dumps(log_data, ensure_ascii=False))
         else:
-            # info级别只记录基本信息
+            # 只记录基本信息
             basic_data = {k: v for k, v in log_data.items() if k != "messages"}
             self.logger.info(json.dumps(basic_data, ensure_ascii=False))
+        
+    def log_chunk(self, provider, model, chunk):
+        """记录流式响应的chunk"""
+        if self.logger.level > logging.DEBUG:
+            return
+        log_data = {
+            "timestamp": datetime.now().isoformat(),
+            "event": "chunk",
+            "provider": provider,
+            "model": model,
+            "chunk": chunk
+        }
+        self.logger.debug(json.dumps(log_data, ensure_ascii=False))
 
     def log_request_complete(self, provider, model, status_code, duration, input_tokens, output_tokens, messages, response, is_stream=False):
         """记录请求完成"""
@@ -64,10 +78,10 @@ class RequestLogger:
             "messages": messages,
             "response": response
         }
-        if self.logger.level <= logging.DEBUG:
-            self.logger.debug(json.dumps(log_data, ensure_ascii=False))
+        if LOG_CONFIG.get("logging_message", False):
+            self.logger.info(json.dumps(log_data, ensure_ascii=False))
         else:
-            # info级别只记录统计信息
+            # 只记录统计信息
             basic_data = {
                 "timestamp": log_data["timestamp"],
                 "event": log_data["event"],
@@ -91,15 +105,10 @@ class RequestLogger:
             "status_code": status_code,
             "error": error_message
         }
-        if messages and self.logger.level <= logging.DEBUG:
+        if messages and LOG_CONFIG.get("logging_message", False):
             log_data["messages"] = messages
         self.logger.error(json.dumps(log_data, ensure_ascii=False))
     
-    def debug(self, message):
-        print(message)
-        # TODO: 保存debug信息到日志文件
-        return
-
     # 兼容旧的接口
     def log_request(self, provider, model, status_code, duration, input_tokens, output_tokens, messages, response):
         self.log_request_complete(
@@ -125,6 +134,8 @@ class RequestLogger:
         if provider and log["provider"] != provider:
             return False
         return True
+
+
 
 # 单例日志实例
 logger = RequestLogger()
