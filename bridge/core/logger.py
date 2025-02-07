@@ -2,7 +2,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
 import json
-from config.config import LOG_CONFIG
+from bridge.config.config import LOG_CONFIG
 import os
 
 class RequestLogger:

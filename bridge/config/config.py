@@ -1,4 +1,5 @@
 import os
+import json
 from pathlib import Path
 
 # 获取.env文件的绝对路径
@@ -19,43 +20,32 @@ try:
 except Exception as e:
     print(f"Error reading .env file: {e}")
 
-# 服务商支持的模型列表 | models supported by the provider
-PROVIDER_MODELS = {
-    "openai": ["gpt-4o", 
-               "gpt-4o-mini", 
-               "o3-mini"],
-    "gemini": ["gemini-exp-1206", 
-               "gemini-2.0-flash-exp", 
-               "gemini-2.0-flash-thinking-exp"],
-    "deepseek": ["deepseek-chat",
-                 "deepseek-reasoner"]
-}
+# 从config.json加载配置
+config_path = project_root / "config.json"
+try:
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config_data = json.load(f)
+        PROVIDER_MODELS = config_data.get("PROVIDER_MODELS", {})
+        PROVIDER_CONFIG = {}
+        
+        # 处理每个provider的配置
+        for provider, config in config_data.get("providers", {}).items():
+            PROVIDER_CONFIG[provider] = {
+                "base_url": config.get("base_url"),
+                "api_key": config.get("api_key"),
+                "requires_proxy": config.get("requires_proxy", False)
+            }
+except Exception as e:
+    print(f"Error reading config.json: {e}")
+    PROVIDER_MODELS = {}
+    PROVIDER_CONFIG = {}
 
 # 接入API密钥配置
 ACCESS_API_KEYS = os.getenv("ACCESS_API_KEYS", "").split(",")
 
 # 验证必要的API密钥
-if "ACCESS_API_KEYS" not in env_vars:
+if not ACCESS_API_KEYS or not ACCESS_API_KEYS[0]:
     raise ValueError("ACCESS_API_KEYS not found in .env file")
-
-# 服务商配置 | provider configuration
-PROVIDER_CONFIG = {
-    "openai": {
-        "base_url": "https://api.openai-proxy.org/v1/chat/completions",
-        "api_key": env_vars.get("OPENAI_API_KEY"),
-        "requires_proxy": False
-    },
-    "gemini": {
-        "base_url": "https://generativelanguage.googleapis.com/v1beta/chat/completions",
-        "api_key": os.getenv("GOOGLE_API_KEY"),
-        "requires_proxy": True
-    },
-    "deepseek": {
-        "base_url": "https://api.deepseek.com/chat/completions",
-        "api_key": os.getenv("DEEPSEEK_API_KEY"),
-        "requires_proxy": False
-    }
-}
 
 # 代理配置 | proxy configuration    
 PROXY_CONFIG = {
@@ -65,7 +55,7 @@ PROXY_CONFIG = {
 
 # 日志配置 | log configuration
 LOG_CONFIG = {
-    "log_file": "../logs/requests.log",
+    "log_file": str(project_root / "logs/requests.log"),
     "max_file_size": 10485760,  # 10MB
     "backup_count": 5,
     "log_level": "debug"  # 可选值：debug, info

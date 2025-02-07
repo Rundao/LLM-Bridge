@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <title>LLM Bridge Playground</title>
+    <link rel="stylesheet" href="/static/css/playground.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <div class="header">
+        <div class="playground-container">
+            <h1>LLM Bridge Playground</h1>
+            <p>Test your API calls interactively</p>
+        </div>
+    </div>
+
+    <div class="playground-container">
+        <div class="nav-bar">
+            <a href="/">Home</a>
+            <a href="/docs">Documentation</a>
+        </div>
+
+        <div class="request-panel">
+            <h2 class="panel-title">Request</h2>
+            <form id="chat-form">
+                <div class="form-group">
+                    <label for="model">Model:</label>
+                    <select id="model" class="form-control" required>
+                        <option value="">Select a model...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="api-key">API Key:</label>
+                    <input type="password" id="api-key" class="form-control" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="message">Message:</label>
+                    <textarea id="message" class="form-control" required placeholder="Enter your message here..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="stream"> Enable streaming
+                    </label>
+                </div>
+
+                <button type="submit" class="btn" id="send-btn">Send Request</button>
+            </form>
+        </div>
+
+        <div class="response-panel">
+            <h2 class="panel-title">Response</h2>
+            <div id="response" class="response-area">Response will appear here...</div>
+        </div>
+    </div>
+
+    <script>
+        // Fetch available models
+        async function fetchModels() {
+            try {
+                const response = await fetch('/v1/models');
+                const data = await response.json();
+                const modelSelect = document.getElementById('model');
+                
+                data.data.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model.id;
+                    option.textContent = model.id;
+                    modelSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error fetching models:', error);
+            }
+        }
+
+        // Send chat request
+        async function sendChatRequest(isStream = false) {
+            const model = document.getElementById('model').value;
+            const apiKey = document.getElementById('api-key').value;
+            const message = document.getElementById('message').value;
+            const responseArea = document.getElementById('response');
+            const sendBtn = document.getElementById('send-btn');
+
+            if (!model || !apiKey || !message) {
+                alert('Please fill in all required fields');
+                return;
+            }
+
+            const payload = {
+                model: model,
+                messages: [{
+                    role: 'user',
+                    content: message
+                }],
+                stream: isStream
+            };
+
+            sendBtn.disabled = true;
+            responseArea.textContent = 'Waiting for response...';
+
+            try {
+                if (isStream) {
+                    const response = await fetch('/v1/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${apiKey}`
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    responseArea.textContent = '';
+
+                    while (true) {
+                        const {value, done} = await reader.read();
+                        if (done) break;
+                        
+                        const chunk = decoder.decode(value);
+                        const lines = chunk.split('\n');
+                        
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                const data = line.slice(5).trim();
+                                if (data === '[DONE]') continue;
+                                
+                                try {
+                                    const parsed = JSON.parse(data);
+                                    if (parsed.choices && parsed.choices[0].delta.content) {
+                                        responseArea.textContent += parsed.choices[0].delta.content;
+                                    }
+                                } catch (e) {
+                                    console.error('Error parsing SSE data:', e);
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    const response = await fetch('/v1/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${apiKey}`
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const data = await response.json();
+                    if (response.ok) {
+                        responseArea.textContent = data.choices[0].message.content;
+                    } else {
+                        responseArea.textContent = `Error: ${data.detail || 'Unknown error'}`;
+                    }
+                }
+            } catch (error) {
+                responseArea.textContent = `Error: ${error.message}`;
+            } finally {
+                sendBtn.disabled = false;
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchModels();
+
+            document.getElementById('chat-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const isStream = document.getElementById('stream').checked;
+                await sendChatRequest(isStream);
+            });
+        });
+    </script>
+</body>
+</html>

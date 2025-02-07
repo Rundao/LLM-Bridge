@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <title>LLM Bridge Admin</title>
+    <link rel="stylesheet" href="/static/css/admin.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <div class="header">
+        <div class="admin-container">
+            <h1>LLM Bridge Admin</h1>
+            <p>Manage your LLM providers and configurations</p>
+        </div>
+    </div>
+
+    <div class="admin-container">
+        <div class="nav-bar">
+            <a href="/">Home</a>
+            <a href="/docs">Documentation</a>
+            <a href="/playground">Playground</a>
+        </div>
+
+        <div class="provider-list">
+            <div class="provider-header">
+                <h2>Providers</h2>
+                <button class="btn btn-primary" onclick="showAddProviderModal()">Add Provider</button>
+            </div>
+
+            <div id="providers-container">
+                <!-- Provider items will be dynamically inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Provider Modal -->
+    <div id="provider-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modal-title">Add Provider</h3>
+                <button class="close-btn" onclick="hideModal('provider-modal')">&times;</button>
+            </div>
+            <form id="provider-form">
+                <input type="hidden" id="edit-mode" value="false">
+                <div class="form-group">
+                    <label for="provider-name">Provider Name:</label>
+                    <input type="text" id="provider-name" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="base-url">Base URL:</label>
+                    <input type="url" id="base-url" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="api-key">API Key:</label>
+                    <input type="password" id="api-key" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="requires-proxy"> Requires Proxy
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>Models:</label>
+                    <div id="models-container">
+                        <!-- Model input groups will be dynamically inserted here -->
+                    </div>
+                    <button type="button" class="btn btn-primary" onclick="addModelInput()">Add Model</button>
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="btn btn-primary">Save Provider</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        
+        let config = null;
+
+       
+        async function initPage() {
+            await loadConfig();
+            renderProviders();
+        }
+
+        
+        async function loadConfig() {
+            try {
+                const response = await fetch('/api/config');
+                config = await response.json();
+            } catch (error) {
+                console.error('Error loading config:', error);
+                showError('Failed to load configuration');
+            }
+        }
+
+        
+        function renderProviders() {
+            const container = document.getElementById('providers-container');
+            container.innerHTML = '';
+
+            Object.entries(config.providers).forEach(([name, provider]) => {
+                const div = document.createElement('div');
+                div.className = 'provider-item';
+                div.innerHTML = `
+                    <div class="provider-header">
+                        <span class="provider-name">${name}</span>
+                        <div class="provider-actions">
+                            <button class="btn btn-edit" onclick="editProvider('${name}')">Edit</button>
+                            <button class="btn btn-danger" onclick="deleteProvider('${name}')">Delete</button>
+                        </div>
+                    </div>
+                    <div class="provider-details">
+                        <div>Base URL: ${provider.base_url}</div>
+                        <div>API Key: ${'*'.repeat(10)}</div>
+                        <div>Requires Proxy: ${provider.requires_proxy ? 'Yes' : 'No'}</div>
+                    </div>
+                    <div class="provider-models">
+                        <h4>Models:</h4>
+                        <ul class="model-list">
+                            ${config.PROVIDER_MODELS[name]?.map(model => 
+                                `<li class="model-item">${model}</li>`
+                            ).join('') || 'No models configured'}
+                        </ul>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        
+        function showAddProviderModal() {
+            document.getElementById('modal-title').textContent = 'Add Provider';
+            document.getElementById('edit-mode').value = 'false';
+            document.getElementById('provider-form').reset();
+            document.getElementById('provider-name').disabled = false;
+            clearModelInputs();
+            addModelInput();
+            showModal('provider-modal');
+        }
+
+        
+        function editProvider(name) {
+            const provider = config.providers[name];
+            document.getElementById('modal-title').textContent = 'Edit Provider';
+            document.getElementById('edit-mode').value = 'true';
+            document.getElementById('provider-name').value = name;
+            document.getElementById('provider-name').disabled = true;
+            document.getElementById('base-url').value = provider.base_url;
+            document.getElementById('api-key').value = provider.api_key;
+            document.getElementById('requires-proxy').checked = provider.requires_proxy;
+
+            clearModelInputs();
+            const models = config.PROVIDER_MODELS[name] || [];
+            models.forEach(model => addModelInput(model));
+            showModal('provider-modal');
+        }
+
+        
+        async function deleteProvider(name) {
+            if (!confirm(`Are you sure you want to delete provider "${name}"?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/providers/${name}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    delete config.providers[name];
+                    delete config.PROVIDER_MODELS[name];
+                    renderProviders();
+                    showSuccess('Provider deleted successfully');
+                } else {
+                    throw new Error('Failed to delete provider');
+                }
+            } catch (error) {
+                console.error('Error deleting provider:', error);
+                showError('Failed to delete provider');
+            }
+        }
+
+        
+        function addModelInput(value = '') {
+            const container = document.getElementById('models-container');
+            const div = document.createElement('div');
+            div.className = 'model-input-group';
+            div.innerHTML = `
+                <input type="text" class="form-control" value="${value}" placeholder="Model name">
+                <button type="button" class="btn btn-danger" onclick="removeModelInput(this)">Remove</button>
+            `;
+            container.appendChild(div);
+        }
+
+       
+        function removeModelInput(button) {
+            button.parentElement.remove();
+        }
+
+       
+        function clearModelInputs() {
+            document.getElementById('models-container').innerHTML = '';
+        }
+
+       
+        async function saveProvider(event) {
+            event.preventDefault();
+
+            const isEdit = document.getElementById('edit-mode').value === 'true';
+            const name = document.getElementById('provider-name').value;
+            const baseUrl = document.getElementById('base-url').value;
+            const apiKey = document.getElementById('api-key').value;
+            const requiresProxy = document.getElementById('requires-proxy').checked;
+
+            const models = Array.from(
+                document.querySelectorAll('#models-container input')
+            ).map(input => input.value.trim()).filter(Boolean);
+
+            const providerData = {
+                base_url: baseUrl,
+                api_key: apiKey,
+                requires_proxy: requiresProxy,
+                models: models
+            };
+
+            try {
+                const response = await fetch(`/api/providers/${name}`, {
+                    method: isEdit ? 'PUT' : 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(providerData)
+                });
+
+                if (response.ok) {
+                    await loadConfig();
+                    renderProviders();
+                    hideModal('provider-modal');
+                    showSuccess(`Provider ${isEdit ? 'updated' : 'added'} successfully`);
+                } else {
+                    throw new Error(`Failed to ${isEdit ? 'update' : 'add'} provider`);
+                }
+            } catch (error) {
+                console.error('Error saving provider:', error);
+                showError(`Failed to ${isEdit ? 'update' : 'add'} provider`);
+            }
+        }
+
+       
+        function showModal(id) {
+            document.getElementById(id).style.display = 'block';
+        }
+
+       
+        function hideModal(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+
+        
+        function showError(message) {
+            alert(message); 
+        }
+
+        
+        function showSuccess(message) {
+            alert(message); 
+        }
+
+       
+        document.getElementById('provider-form').addEventListener('submit', saveProvider);
+
+        document.addEventListener('DOMContentLoaded', initPage);
+    </script>
+</body>
+</html>

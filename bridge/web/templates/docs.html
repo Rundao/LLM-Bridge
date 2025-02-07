@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LLM Bridge API Documentation</title>
+    <link rel="stylesheet" href="/static/css/docs.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <div class="header">
+        <div class="docs-container">
+            <h1>LLM Bridge API Documentation</h1>
+            <p>A bridge service for LLM API proxying</p>
+        </div>
+    </div>
+
+    <div class="docs-container">
+        <div class="nav-tabs">
+            <a href="/">Home</a>
+            <a href="/playground">Playground</a>
+            <a href="#endpoints" class="active">Endpoints</a>
+            <a href="#models">Models</a>
+            <a href="#authentication">Authentication</a>
+        </div>
+
+        <section id="endpoints">
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="endpoint-method method-post">POST</span>
+                    <span class="endpoint-path">/v1/chat/completions</span>
+                </div>
+                <div class="endpoint-content">
+                    <div class="section">
+                        <h3>Description</h3>
+                        <p>Creates a chat completion for the provided messages.</p>
+                    </div>
+
+                    <div class="section">
+                        <h3>Request Headers</h3>
+                        <table class="param-table">
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                            <tr>
+                                <td>Authorization <span class="required">*</span></td>
+                                <td>string</td>
+                                <td>Bearer token for authentication</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div class="section">
+                        <h3>Request Body</h3>
+                        <table class="param-table">
+                            <tr>
+                                <th>Parameter</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                            <tr>
+                                <td>model <span class="required">*</span></td>
+                                <td>string</td>
+                                <td>ID of the model to use (e.g., "openai/gpt-4o")</td>
+                            </tr>
+                            <tr>
+                                <td>messages <span class="required">*</span></td>
+                                <td>array</td>
+                                <td>Array of message objects</td>
+                            </tr>
+                            <tr>
+                                <td>stream</td>
+                                <td>boolean</td>
+                                <td>Whether to stream the response (default: false)</td>
+                            </tr>
+                        </table>
+
+                        <h4>Example Request:</h4>
+                        <div class="code-block">
+{
+    "model": "openai/gpt-4o",
+    "messages": [
+        {
+            "role": "user",
+            "content": "Hello, how are you?"
+        }
+    ],
+    "stream": false
+}</div>
+                    </div>
+
+                    <div class="section">
+                        <h3>Response</h3>
+                        <div class="code-block">
+{
+    "id": "chatcmpl-123",
+    "object": "chat.completion",
+    "created": 1677858242,
+    "model": "openai/gpt-4o",
+    "choices": [
+        {
+            "message": {
+                "role": "assistant",
+                "content": "Hello! I'm doing well, thank you for asking..."
+            },
+            "finish_reason": "stop",
+            "index": 0
+        }
+    ]
+}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="endpoint-method method-get">GET</span>
+                    <span class="endpoint-path">/v1/models</span>
+                </div>
+                <div class="endpoint-content">
+                    <div class="section">
+                        <h3>Description</h3>
+                        <p>Lists the available models.</p>
+                    </div>
+
+                    <div class="section">
+                        <h3>Response</h3>
+                        <div class="code-block">
+{
+    "object": "list",
+    "data": [
+        {
+            "id": "openai/gpt-4o",
+            "object": "model",
+            "created": 1677858242,
+            "owned_by": "openai"
+        },
+        {
+            "id": "deepseek/deepseek-chat",
+            "object": "model",
+            "created": 1677858242,
+            "owned_by": "deepseek"
+        }
+    ]
+}</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="models" style="display: none;">
+            <h2>Available Models</h2>
+            <div class="section">
+                <table class="param-table">
+                    <tr>
+                        <th>Provider</th>
+                        <th>Models</th>
+                    </tr>
+                    <tr>
+                        <td>OpenAI</td>
+                        <td>gpt-4o, gpt-4o-mini, o3-mini</td>
+                    </tr>
+                    <tr>
+                        <td>Gemini</td>
+                        <td>gemini-exp-1206, gemini-2.0-flash-exp, gemini-2.0-flash-thinking-exp</td>
+                    </tr>
+                    <tr>
+                        <td>Deepseek</td>
+                        <td>deepseek-chat, deepseek-reasoner</td>
+                    </tr>
+                </table>
+            </div>
+        </section>
+
+        <section id="authentication" style="display: none;">
+            <h2>Authentication</h2>
+            <div class="section">
+                <p>All API requests require authentication using a Bearer token in the Authorization header:</p>
+                <div class="code-block">
+Authorization: Bearer your-api-key</div>
+                
+                <h3>API Keys</h3>
+                <p>To use the API, you need:</p>
+                <ol>
+                    <li>An access API key for this service</li>
+                    <li>API keys for the LLM providers you want to use</li>
+                </ol>
+                
+                <p>Configure your API keys in the config.json file:</p>
+                <div class="code-block">
+{
+    "providers": {
+        "openai": {
+            "api_key": "your-openai-api-key"
+        },
+        "anthropic": {
+            "api_key": "your-anthropic-api-key"
+        }
+    }
+}</div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        document.querySelectorAll('.nav-tabs a').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                e.preventDefault();
+                // Remove active class from all tabs
+                document.querySelectorAll('.nav-tabs a').forEach(t => {
+                    t.classList.remove('active');
+                });
+                // Add active class to clicked tab
+                tab.classList.add('active');
+                // Hide all sections
+                document.querySelectorAll('section').forEach(s => {
+                    s.style.display = 'none';
+                });
+                // Show selected section
+                const sectionId = tab.getAttribute('href').substring(1);
+                document.getElementById(sectionId).style.display = 'block';
+            });
+        });
+
+        // Show endpoints section by default
+        document.getElementById('endpoints').style.display = 'block';
+    </script>
+</body>
+</html>

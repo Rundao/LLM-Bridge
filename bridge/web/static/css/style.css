@@ -1,0 +1,40 @@
+body {
+    font-family: Arial, sans-serif;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    line-height: 1.6;
+}
+
+h1 { 
+    color: #2c3e50; 
+}
+
+.endpoints {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 5px;
+    margin: 20px 0;
+}
+
+a { 
+    color: #3498db; 
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+.container {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    background: white;
+    padding: 30px;
+    border-radius: 8px;
+    margin-top: 20px;
+}
+
+.endpoint-item {
+    margin: 10px 0;
+    padding: 5px 0;
+}
