@@ -53,11 +53,11 @@ LLM Bridge is a centralized service for managing and proxying API requests to la
    ```
    ACCESS_API_KEYS=your-access-key-1,your-access-key-2
    OPENAI_API_KEY=your-openai-key
-   GOOGLE_API_KEY=your-google-key
+   GEMINI_API_KEY=your-gemini-key
    DEEPSEEK_API_KEY=your-deepseek-key
    ```
    Here, `ACCESS_API_KEYS` is used for authenticating API requests.
-   `OPENAI_API_KEY`, `GOOGLE_API_KEY`, and `DEEPSEEK_API_KEY` correspond to the API keys for each provider.
+   `OPENAI_API_KEY`, `GEMINI_API_KEY`, and `DEEPSEEK_API_KEY` correspond to the API keys for each provider.
 
 4. Start the service
    ```bash
@@ -132,7 +132,7 @@ PROVIDER_CONFIG = {
     },
     "gemini": {
         "base_url": "https://generativelanguage.googleapis.com/v1beta/chat/completions",
-        "api_key": os.getenv("GOOGLE_API_KEY"),
+        "api_key": os.getenv("GEMINI_API_KEY"),
         "requires_proxy": True
     },
     "deepseek": {
@@ -162,10 +162,11 @@ PROXY_CONFIG = {
 Logs are stored in `logs/requests.log`. Adjust the settings in the configuration file if needed:
 ```python
 LOG_CONFIG = {
-    "log_file": "logs/requests.log",
+    "log_file": "../logs/requests.log",
     "max_file_size": 10485760,  # 10MB
     "backup_count": 5,
-    "log_level": "debug"
+    "log_level": "debug",
+    "logging_message": True
 }
 ```
 
