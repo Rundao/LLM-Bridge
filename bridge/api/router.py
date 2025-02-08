@@ -3,9 +3,9 @@ import time
 import json
 import uuid
 from typing import Optional, Dict, Any, AsyncGenerator
-from config.config import PROVIDER_CONFIG, PROXY_CONFIG, ACCESS_API_KEYS, PROVIDER_MODELS
-from core.logger import logger
-from core.token_counter import token_counter
+from bridge.config.config import PROVIDER_CONFIG, PROXY_CONFIG, ACCESS_API_KEYS, PROVIDER_MODELS
+from bridge.core.logger import logger
+from bridge.core.token_counter import token_counter
 
 # 模型名称解析
 def parse_model_name(model: str) -> tuple[str, str]:

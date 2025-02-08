@@ -1,0 +1,139 @@
+body {
+    font-family: Arial, sans-serif;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+    color: #333;
+}
+
+.docs-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.header {
+    background: #2c3e50;
+    color: white;
+    padding: 20px;
+    margin-bottom: 30px;
+}
+
+.header h1 {
+    margin: 0;
+    font-size: 24px;
+}
+
+.header p {
+    margin: 10px 0 0;
+    opacity: 0.8;
+}
+
+.nav-tabs {
+    border-bottom: 1px solid #ddd;
+    margin-bottom: 20px;
+}
+
+.nav-tabs a {
+    display: inline-block;
+    padding: 10px 20px;
+    color: #666;
+    text-decoration: none;
+    border: 1px solid transparent;
+    margin-bottom: -1px;
+}
+
+.nav-tabs a:hover {
+    color: #333;
+}
+
+.nav-tabs a.active {
+    color: #2c3e50;
+    border: 1px solid #ddd;
+    border-bottom-color: white;
+}
+
+.endpoint {
+    margin-bottom: 30px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.endpoint-header {
+    padding: 15px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #ddd;
+}
+
+.endpoint-method {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 3px;
+    font-weight: bold;
+    margin-right: 10px;
+}
+
+.method-post {
+    background: #49cc90;
+    color: white;
+}
+
+.method-get {
+    background: #61affe;
+    color: white;
+}
+
+.endpoint-path {
+    font-family: monospace;
+    font-size: 16px;
+}
+
+.endpoint-content {
+    padding: 15px;
+}
+
+.section {
+    margin-bottom: 20px;
+}
+
+.section h3 {
+    color: #2c3e50;
+    margin-bottom: 10px;
+}
+
+.param-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+}
+
+.param-table th,
+.param-table td {
+    padding: 10px;
+    text-align: left;
+    border: 1px solid #ddd;
+}
+
+.param-table th {
+    background: #f8f9fa;
+}
+
+.code-block {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 4px;
+    font-family: monospace;
+    overflow-x: auto;
+}
+
+.response-example {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 4px;
+    margin-top: 10px;
+}
+
+.required {
+    color: #e74c3c;
+    font-weight: bold;
+}
