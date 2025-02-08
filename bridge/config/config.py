@@ -58,5 +58,6 @@ LOG_CONFIG = {
     "log_file": str(project_root / "logs/requests.log"),
     "max_file_size": 10485760,  # 10MB
     "backup_count": 5,
-    "log_level": "debug"  # 可选值：debug, info
+    "log_level": "debug",  # 可选值：debug, info
+    "logging_message": True
 }

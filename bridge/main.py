@@ -104,6 +104,7 @@ async def delete_provider(name: str):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 router = Router()
 
 @app.post("/v1/chat/completions")
