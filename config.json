@@ -1,11 +1,12 @@
 {
     "providers": {
-        "openai": {
-            "api_key": "sk-AZ02uzywotZlHNUQ7D0t37Xlw8MNIEmPgwf4TWnByr8wLx1g",
-            "base_url": "https://api.openai-proxy.org/v1"
-        },
         "anthropic": {
             "base_url": "https://api.openai-proxy.org/anthropic",
+            "api_key": "sk-AZ02uzywotZlHNUQ7D0t37Xlw8MNIEmPgwf4TWnByr8wLx1g",
+            "requires_proxy": false
+        },
+        "openai": {
+            "base_url": "https://api.openai-proxy.org",
             "api_key": "sk-AZ02uzywotZlHNUQ7D0t37Xlw8MNIEmPgwf4TWnByr8wLx1g",
             "requires_proxy": false
         }
@@ -17,6 +18,10 @@
     "PROVIDER_MODELS": {
         "anthropic": [
             "claude-3-5-sonnet-20241022"
+        ],
+        "openai": [
+            "gpt-4o",
+            "o3-mini"
         ]
     }
 }
