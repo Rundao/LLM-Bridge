@@ -28,8 +28,7 @@ async def chat_completions(request: Request):
                     async for chunk in router.route_request_stream(model, api_key, payload):
                         if chunk.strip():
                             # 确保chunk是正确的SSE格式
-                            if not chunk.startswith('data: '):
-                                chunk = f"data: {chunk}"
+                            logger.log_chunk(chunk=chunk, state="Sending")
                             yield f"{chunk}\n\n"
                     yield "data: [DONE]\n\n"
                 except Exception as e:
