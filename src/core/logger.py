@@ -50,17 +50,21 @@ class RequestLogger:
             basic_data = {k: v for k, v in log_data.items() if k != "messages"}
             self.logger.info(json.dumps(basic_data, ensure_ascii=False))
         
-    def log_chunk(self, provider, model, chunk):
+    def log_chunk(self, chunk, provider=None, model=None, state='Received'):
         """记录流式响应的chunk"""
         if self.logger.level > logging.DEBUG:
             return
         log_data = {
             "timestamp": datetime.now().isoformat(),
-            "event": "chunk",
+            "event": "chunk " + state,
             "provider": provider,
             "model": model,
             "chunk": chunk
         }
+        if provider is None:
+            del log_data["provider"]
+        if model is None:
+            del log_data["model"] 
         self.logger.debug(json.dumps(log_data, ensure_ascii=False))
 
     def log_request_complete(self, provider, model, status_code, duration, input_tokens, output_tokens, messages, response, is_stream=False):
