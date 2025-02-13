@@ -1,6 +1,7 @@
 import aiohttp
 import time
 import json
+import uuid
 from typing import Optional, Dict, Any, AsyncGenerator
 from config.config import PROVIDER_CONFIG, PROXY_CONFIG, ACCESS_API_KEYS, PROVIDER_MODELS
 from core.logger import logger
@@ -21,11 +22,28 @@ class Router:
 
     async def get_session(self):
         if self.session is None:
-            self.session = aiohttp.ClientSession()
+            timeout = aiohttp.ClientTimeout(
+                total=600,  # 总超时时间 10 分钟
+                connect=30,  # 连接超时 30 秒
+                sock_read=180  # 读取超时 3 分钟
+            )
+            self.session = aiohttp.ClientSession(timeout=timeout)
         return self.session
 
     async def _validate_request(self, model: str, api_key: str, payload: Dict[str, Any]):
         """验证请求参数并返回必要的配置信息"""
+        
+        # 验证接入API密钥
+        if api_key not in ACCESS_API_KEYS:
+            logger.log_request_error(
+                provider="unknown",
+                model=model,
+                status_code=401,
+                error_message="Invalid access API key",
+                messages=payload.get("messages", [])
+            )
+            raise PermissionError("Invalid access API key")
+        
         # 解析模型名称
         provider, model_name = parse_model_name(model)
         self.model = model_name
@@ -52,20 +70,8 @@ class Router:
             )
             raise ValueError(f"Model {model_name} not supported by provider {provider}")
 
-        provider_config = PROVIDER_CONFIG.get(provider)
-
-        # 验证接入API密钥
-        if api_key not in ACCESS_API_KEYS:
-            logger.log_request_error(
-                provider="unknown",
-                model=model,
-                status_code=401,
-                error_message="Invalid access API key",
-                messages=payload.get("messages", [])
-            )
-            raise PermissionError("Invalid access API key")
-
         # 获取服务商配置
+        provider_config = PROVIDER_CONFIG.get(provider)
         if not provider_config:
             logger.log_request_error(
                 provider="unknown",
@@ -94,105 +100,138 @@ class Router:
 
     async def route_request_stream(self, model: str, api_key: str, payload: Dict[str, Any]) -> AsyncGenerator[str, None]:
         """处理流式请求，支持 SSE 协议"""
-        
         provider, provider_config = await self._validate_request(model, api_key, payload)
         headers, proxies = await self._prepare_request(provider_config, payload)
         payload["model"] = self.model  # 修改 payload 中 model 字段
         messages = payload.get("messages", [])
         input_tokens = token_counter.count_message_tokens(messages, self.model)
-        logger.log_request_start(provider, model, messages, is_stream=True)
+        logger.log_request_start(provider, model, messages, is_stream=True, input_tokens=input_tokens)
+
+        start_time = time.time()
+        response = None
 
         try:
-            start_time = time.time()
             session = await self.get_session()
-            async with session.post(
+            response = await session.post(
                 provider_config['base_url'],
                 json=payload,
                 headers=headers,
-                proxy=proxies
-            ) as response:
-                full_response = []      # 用于累计所有有效文本
-                buffer = ""             # 保存数据缓冲
-                current_event = []      # 收集当前 SSE 事件行
+                proxy=proxies,
+                timeout=aiohttp.ClientTimeout(total=600, connect=30, sock_read=180)
+            )
 
-                # 遍历每个数据块，注意 decode 时使用 errors='replace'
-                async for chunk in response.content:
-                    if chunk:
-                        buffer += chunk.decode("utf-8", errors="replace")
-                        
-                        # 逐行处理，注意可能存在残留未完整一行的数据
-                        while True:
-                            newline_pos = buffer.find("\n")
-                            if newline_pos == -1:
-                                break
-                            line = buffer[:newline_pos].strip()
-                            buffer = buffer[newline_pos + 1:]
-                            
-                            # 空行表示当前 SSE 事件结束
-                            if line == "":
-                                if current_event:
-                                    # 合并当前事件数据
-                                    event_data = "\n".join(current_event)
-                                    current_event = []
-                                    
-                                    # 如果是结束标识 [DONE]，则跳过
-                                    if event_data == "[DONE]":
-                                        continue
-
-                                    try:
-                                        msg_data = json.loads(event_data)
-                                        # 如果解析结果含有 choices 部分，则提取 content 字段
-                                        if "choices" in msg_data and msg_data["choices"]:
-                                            delta = msg_data["choices"][0].get("delta", {})
-                                            content = delta.get("content")
-                                            if content is not None:
-                                                full_response.append(content)
-                                        # 转发符合 SSE 格式的完整事件
-                                        yield f"data: {json.dumps(msg_data)}\n\n"
-                                    except (json.JSONDecodeError, IndexError, KeyError) as e:
-                                        # 仅记录日志，不直接将错误信息暴露给客户端；
-                                        logger.log_request_error(
-                                            provider=provider,
-                                            model=model,
-                                            status_code=500,
-                                            error_message=f"解析流数据错误: {str(e)}",
-                                            messages=messages
-                                        )
-                                        # 可选择转发一个标准错误提示（也可以选择不转发）
-                                        yield f"data: {json.dumps({'error': '解析数据异常'})}\n\n"
-                                continue
-                            
-                            # 跳过以 ":" 开头的注释/心跳行（如 ": keep-alive"）
-                            if line.startswith(":"):
-                                logger.debug(f"Received SSE heartbeat: {line[1:].strip()}")
-                                continue
-                            
-                            # 只处理以 "data:" 开头的有效行；其他行直接加入到当前事件中
-                            if line.startswith("data:"):
-                                data_content = line[len("data:"):].strip()
-                                current_event.append(data_content)
-                            else:
-                                current_event.append(line)
-                
-                # 流结束后，若 buffer 中仍有数据，则尝试处理或发出警告
-                if buffer.strip():
-                    logger.warning("Stream ended but received incomplete data in buffer.")
-                    yield f"data: {json.dumps({'warning': 'incomplete data'})}\n\n"
-
-                duration = time.time() - start_time
-                complete_response = "".join(full_response)
-                output_tokens = token_counter.count_completion_tokens(complete_response, self.model)
-                logger.log_request_complete(
+            if response.status != 200:
+                error_text = await response.text()
+                logger.log_request_error(
                     provider=provider,
                     model=model,
                     status_code=response.status,
-                    duration=duration,
-                    input_tokens=input_tokens,
-                    output_tokens=output_tokens,
-                    messages=messages,
-                    response=complete_response,
-                    is_stream=True
+                    error_message=f"API返回错误状态码: {response.status}, 详细信息: {error_text}",
+                    messages=messages
                 )
+                raise RuntimeError(f"API返回错误状态码: {response.status}")
+
+            buffer = ""             # 保存数据缓冲
+            current_sse = {         # 当前SSE事件的状态
+                'event': None,      # 事件类型
+                'data': [],         # 数据行列表
+                'id': None,         # 事件ID
+                'retry': None       # 重试间隔
+            }
+            full_response = []      # 用于累计所有有效文本
+
+            async for chunk in response.content:
+                if chunk:
+                    buffer += chunk.decode("utf-8", errors="replace")
+                    logger.log_chunk(buffer, provider, model)
+                    
+                    while True:
+                        newline_pos = buffer.find("\n")
+                        if newline_pos == -1:
+                            break
+                            
+                        line = buffer[:newline_pos].strip()
+                        buffer = buffer[newline_pos + 1:]
+                        
+                        # 空行表示事件结束，处理完整事件
+                        if line == "":
+                            if current_sse['data']:
+                                try:
+                                    # 合并多行数据
+                                    event_data = "\n".join(current_sse['data'])
+                                    
+                                    # 处理特殊的[DONE]标记
+                                    if event_data == "[DONE]":
+                                        yield "data: [DONE]\n\n"
+                                        current_sse = {'event': None, 'data': [], 'id': None, 'retry': None}
+                                        continue
+                                    
+                                    msg_data = json.loads(event_data)
+                                    if "id" not in msg_data:    # 为gemini回复添加ID
+                                        msg_data["id"] = str(uuid.uuid4())
+                                    
+                                    # 处理内容
+                                    if "choices" in msg_data and msg_data["choices"]:
+                                        delta = msg_data["choices"][0].get("delta", {})
+                                        content = delta.get("content")
+                                        if content is not None:
+                                            full_response.append(content)
+
+                                    # 构建SSE响应
+                                    sse_lines = []
+                                    if current_sse['event']:
+                                        sse_lines.append(f"event: {current_sse['event']}")
+                                    
+                                    if current_sse['retry']:
+                                        sse_lines.append(f"retry: {current_sse['retry']}")
+                                    
+                                    sse_lines.append(f"data: {json.dumps(msg_data)}")
+                                    yield f"{chr(10).join(sse_lines)}\n\n"
+
+                                except (json.JSONDecodeError, IndexError, KeyError) as e:
+                                    logger.log_request_error(
+                                        provider=provider,
+                                        model=model,
+                                        status_code=500,
+                                        error_message=f"解析流数据错误: {str(e)}",
+                                        messages=messages
+                                    )
+                                    yield f"data: {json.dumps({'error': '解析数据异常'})}\n\n"
+                            
+                            # 重置当前事件
+                            current_sse = {'event': None, 'data': [], 'id': None, 'retry': None}
+                            continue
+
+                        # 处理SSE字段
+                        if line.startswith(":"):  # 注释行
+                            yield f"{line}\n"
+                            continue
+                            
+                        # 使用startswith判断SSE字段
+                        if line.startswith("event:"):
+                            current_sse['event'] = line[6:].strip()
+                        elif line.startswith("data:"):
+                            current_sse['data'].append(line[5:].strip())
+                        elif line.startswith("id:"):
+                            current_sse['id'] = line[3:].strip()
+                        elif line.startswith("retry:"):
+                            try:
+                                current_sse['retry'] = int(line[6:].strip())
+                            except ValueError:
+                                pass
+                        elif ":" not in line and line.strip():
+                            # 没有冒号的非空行视为data字段的延续
+                            current_sse['data'].append(line)
+                        else:
+                            # 未知字段记录警告
+                            if line.strip():
+                                logger.logger.warning(f"未知的SSE字段: {line}")
+
+            # 处理残留在buffer中的数据
+            if buffer.strip():
+                logger.logger.warning("Stream ended but received incomplete data in buffer.")
+                yield f"data: {json.dumps({'warning': 'incomplete data'})}\n\n"
+
         except Exception as e:
             logger.log_request_error(
                 provider=provider,
@@ -202,6 +241,28 @@ class Router:
                 messages=messages
             )
             raise
+
+        finally:
+            # 记录完成状态
+            duration = time.time() - start_time
+            complete_response = "".join(full_response)
+            output_tokens = token_counter.count_completion_tokens(complete_response, self.model)
+            
+            logger.log_request_complete(
+                provider=provider,
+                model=model,
+                status_code=response.status if response else 500,
+                duration=duration,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                messages=messages,
+                response=complete_response,
+                is_stream=True
+            )
+
+            # 安全地关闭响应
+            if response and not response.closed:
+                response.close()
 
     async def route_request(self, model: str, api_key: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         """处理非流式请求"""
@@ -218,7 +279,7 @@ class Router:
         input_tokens = token_counter.count_message_tokens(messages, self.model)
         
         # 记录请求开始
-        logger.log_request_start(provider, model, messages, is_stream=False)
+        logger.log_request_start(provider, model, messages, is_stream=False, input_tokens=input_tokens)
         
         try:
             start_time = time.time()
@@ -227,8 +288,20 @@ class Router:
                 provider_config['base_url'],
                 json=payload,
                 headers=headers,
-                proxy=proxies
+                proxy=proxies,
+                timeout=aiohttp.ClientTimeout(total=600, connect=30, sock_read=180)
             ) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    logger.log_request_error(
+                        provider=provider,
+                        model=model,
+                        status_code=response.status,
+                        error_message=f"API返回错误状态码: {response.status}, 详细信息: {error_text}",
+                        messages=messages
+                    )
+                    raise RuntimeError(f"API返回错误状态码: {response.status}")
+
                 response_data = await response.json()
                 duration = time.time() - start_time
 
@@ -248,15 +321,6 @@ class Router:
                 )
 
                 return response_data
-        except Exception as e:
-            logger.log_request_error(
-                provider=provider,
-                model=model,
-                status_code=500,
-                error_message=str(e),
-                messages=messages
-            )
-            raise
         except aiohttp.ClientError as e:
             error_msg = f"API request failed: {str(e)}"
             logger.log_request_error(

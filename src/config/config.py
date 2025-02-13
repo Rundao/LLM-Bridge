@@ -21,10 +21,12 @@ except Exception as e:
 
 # 服务商支持的模型列表 | models supported by the provider
 PROVIDER_MODELS = {
-    "openai": ["gpt-4o", 
+    "closeai": ["gpt-4o", 
                "gpt-4o-mini", 
-               "o3-mini"],
-    "gemini": ["gemini-exp-1206", 
+               "o3-mini",
+               "deepseek-chat",
+               "deepseek-reasoner"],
+    "gemini": ["gemini-2.0-pro-exp-02-05", 
                "gemini-2.0-flash-exp", 
                "gemini-2.0-flash-thinking-exp"],
     "deepseek": ["deepseek-chat",
@@ -40,14 +42,14 @@ if "ACCESS_API_KEYS" not in env_vars:
 
 # 服务商配置 | provider configuration
 PROVIDER_CONFIG = {
-    "openai": {
+    "closeai": {
         "base_url": "https://api.openai-proxy.org/v1/chat/completions",
-        "api_key": env_vars.get("OPENAI_API_KEY"),
+        "api_key": env_vars.get("CLOSEAI_API_KEY"),
         "requires_proxy": False
     },
     "gemini": {
         "base_url": "https://generativelanguage.googleapis.com/v1beta/chat/completions",
-        "api_key": os.getenv("GOOGLE_API_KEY"),
+        "api_key": os.getenv("GEMINI_API_KEY"),
         "requires_proxy": True
     },
     "deepseek": {
@@ -66,7 +68,8 @@ PROXY_CONFIG = {
 # 日志配置 | log configuration
 LOG_CONFIG = {
     "log_file": "../logs/requests.log",
-    "max_file_size": 10485760,  # 10MB
+    "max_file_size": 10_485_760,  # 10MB
     "backup_count": 5,
-    "log_level": "debug"  # 可选值：debug, info
+    "log_level": "debug",  # 可选值：debug, info
+    "logging_message": True
 }
