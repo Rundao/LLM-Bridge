@@ -165,8 +165,10 @@ class Router:
                                         yield "data: [DONE]\n\n"
                                         current_sse = {'event': None, 'data': [], 'id': None, 'retry': None}
                                         continue
-
+                                    
                                     msg_data = json.loads(event_data)
+                                    if "id" not in msg_data:    # 为gemini回复添加ID
+                                        msg_data["id"] = str(uuid.uuid4())
                                     
                                     # 处理内容
                                     if "choices" in msg_data and msg_data["choices"]:
@@ -179,9 +181,6 @@ class Router:
                                     sse_lines = []
                                     if current_sse['event']:
                                         sse_lines.append(f"event: {current_sse['event']}")
-                                    
-                                    event_id = current_sse['id'] or str(uuid.uuid4())
-                                    sse_lines.append(f"id: {event_id}")
                                     
                                     if current_sse['retry']:
                                         sse_lines.append(f"retry: {current_sse['retry']}")
@@ -263,7 +262,7 @@ class Router:
 
             # 安全地关闭响应
             if response and not response.closed:
-                await response.close()
+                response.close()
 
     async def route_request(self, model: str, api_key: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         """处理非流式请求"""
