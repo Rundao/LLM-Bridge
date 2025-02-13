@@ -61,10 +61,18 @@ class RequestLogger:
             "model": model,
             "chunk": chunk
         }
+        # 转换chunk中的乱码（通常由UTF-8与Latin-1解码不匹配引起）为实际中文
+        try:
+            if "\\u" in log_data["chunk"]:
+                log_data["chunk"] = log_data["chunk"].encode('utf-8').decode('unicode_escape')
+        except Exception as e:
+            # 如果解码失败，保留原始chunk内容
+            pass
+        
         if provider is None:
             del log_data["provider"]
         if model is None:
-            del log_data["model"] 
+            del log_data["model"]
         self.logger.debug(json.dumps(log_data, ensure_ascii=False))
 
     def log_request_complete(self, provider, model, status_code, duration, input_tokens, output_tokens, messages, response, is_stream=False):
