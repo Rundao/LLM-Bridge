@@ -7,14 +7,14 @@ LLM Bridge is a centralized service for managing and proxying API requests to la
 ## Features
 
 - 🚀 Unified API interface compatible with OpenAI's format
-- 🔄 Supports both streaming (SSE) and non-streaming responses
+- 🔄 Supports both streaming (SSE) and WebSocket connections
 - 🛠 Supports multiple popular LLM providers:
   - OpenAI
   - Google Gemini
   - Deepseek
   - Other providers compatible with the OpenAI format
 - 🔌 Flexible proxy configuration
-- 📝 Detailed request logging
+- 📝 Structured JSON logging
 - 🔑 API key management and authentication
 - 📊 Token counting and usage statistics
 
@@ -52,12 +52,12 @@ LLM Bridge is a centralized service for managing and proxying API requests to la
    Then edit the `.env` file and fill in the necessary configurations:
    ```
    ACCESS_API_KEYS=your-access-key-1,your-access-key-2
-   OPENAI_API_KEY=your-openai-key
+   CLOSEAI_API_KEY=your-closeai-key
    GEMINI_API_KEY=your-gemini-key
    DEEPSEEK_API_KEY=your-deepseek-key
    ```
    Here, `ACCESS_API_KEYS` is used for authenticating API requests.
-   `OPENAI_API_KEY`, `GEMINI_API_KEY`, and `DEEPSEEK_API_KEY` correspond to the API keys for each provider.
+   The other keys correspond to the API keys for each provider.
 
 4. Start the service
    ```bash
@@ -75,7 +75,7 @@ curl http://localhost:1219/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer your-access-key" \
   -d '{
-    "model": "openai/gpt-4o-mini",
+    "model": "closeai/gpt-4o-mini",
     "messages": [{"role": "user", "content": "Hello"}],
     "stream": true
   }'
@@ -90,139 +90,138 @@ Example using [Cherry Studio](https://cherry-ai.com/):
 - Click "Manage" to add models.
 - Check the connectivity and start using it.
 
+### WebSocket Endpoint
+
+Connect to the WebSocket endpoint at `/v1/ws` for real-time bidirectional communication:
+
+```javascript
+const ws = new WebSocket('ws://localhost:1219/v1/ws');
+
+ws.onmessage = function(event) {
+    console.log('Received:', event.data);
+};
+
+ws.send(JSON.stringify({
+    type: 'chat',
+    api_key: 'your-access-key',
+    payload: {
+        model: 'closeai/gpt-4o-mini',
+        messages: [{role: 'user', content: 'Hello'}]
+    }
+}));
+```
+
 ### Supported Models
 
 Specify the provider by prefixing the model name. For example:
-- OpenAI models: `openai/gpt-4o`, `openai/gpt-4o-mini`
-- Gemini models: `gemini/gemini-exp-1206`
+- CloseAI models: `closeai/gpt-4o`, `closeai/gpt-4o-mini`
+- Gemini models: `gemini/gemini-2.0-pro-exp-02-05`
 - Deepseek models: `deepseek/deepseek-chat`
 
 You can use the `/v1/models` endpoint to retrieve a complete list of supported models.
 
-## Configuration Details
+## Request Flow
 
-### Model List Configuration
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Gateway
+    participant Auth
+    participant Router
+    participant Adapter
+    participant LLM
 
-Configure the list of supported models in `src/config/config.py`:
-```python
-PROVIDER_MODELS = {
-    "openai": ["gpt-4o",
-               "gpt-4o-mini",
-               "o1",
-               "o1-mini",
-               "o3-mini"],
-    "gemini": ["gemini-exp-1206",
-               "gemini-2.0-flash-exp",
-               "gemini-2.0-flash-thinking-exp"],
-    "deepseek": ["deepseek-chat",
-                 "deepseek-reasoner"]
-}
+    Client->>Gateway: Send chat request
+    Gateway->>Auth: Verify API Key
+    Auth-->>Gateway: Return user permissions
+    Gateway->>Router: Pass request context
+    Router->>Router: Select model based on strategy
+    Router->>Adapter: Call corresponding adapter
+    Adapter->>Adapter: Normalize request format
+    Adapter->>LLM: Async API call
+    LLM-->>Adapter: Return raw response
+    Adapter->>Adapter: Normalize error handling
+    Adapter-->>Router: Return unified format
+    Router-->>Gateway: Return processed result
+    Gateway->>Gateway: Record audit log
+    Gateway-->>Client: Return final response
 ```
-Each provider can have multiple supported models. Users can specify the model using the format `provider/model-name`.
 
-### Provider Configuration
+## Project Structure
 
-Configure provider information in `src/config/config.py`:
-```python
-PROVIDER_CONFIG = {
-    "openai": {
-        "base_url": "https://api.openai-proxy.org/v1/chat/completions",
-        "api_key": env_vars.get("OPENAI_API_KEY"),
-        "requires_proxy": False
-    },
-    "gemini": {
-        "base_url": "https://generativelanguage.googleapis.com/v1beta/chat/completions",
-        "api_key": os.getenv("GEMINI_API_KEY"),
-        "requires_proxy": True
-    },
-    "deepseek": {
-        "base_url": "https://api.deepseek.com/chat/completions",
-        "api_key": os.getenv("DEEPSEEK_API_KEY"),
-        "requires_proxy": False
-    }
-}
 ```
-Each provider configuration includes:
-- `base_url`: API request URL.
-- `api_key`: API key obtained from environment variables.
-- `requires_proxy`: A flag indicating whether a proxy should be used.
+llm-bridge/
+├── configs/
+│   └── config.yaml       # Global configuration
+├── src/
+│   ├── core/ 
+│   │   ├── gateway/      # FastAPI-based request handlers
+│   │   │   ├── http_handler.py    # REST API handler
+│   │   │   └── websocket_handler.py
+│   │   └── router.py     # Request routing
+│   ├── adapters/
+│   │   ├── base.py       # Abstract base class
+│   │   ├── openai.py     # OpenAI format adapter
+│   │   └── gemini.py     # Gemini API adapter
+│   ├── infrastructure/
+│   │   ├── config.py     # Configuration management
+│   │   └── logging.py    # Structured logging
+│   └── main.py           # Service entry point
+├── docs/                 # Documentation
+├── requirements.txt
+└── README.md
+```
 
-### Proxy Configuration
+## Configuration
 
-Configure proxy settings in `src/config/config.py`:
-```python
-PROXY_CONFIG = {
-    "http": "socks5://127.0.0.1:7890",
-    "https": "socks5://127.0.0.1:7890"
-}
+### Model Configuration
+
+Configure supported models and their settings in `configs/config.yaml`:
+```yaml
+providers:
+  closeai:
+    base_url: "https://api.openai-proxy.org/v1/chat/completions"
+    requires_proxy: false
+    models:
+      gpt-4o:
+        max_tokens: 8192
+        timeout: 120
+      gpt-4o-mini:
+        max_tokens: 4096
+        timeout: 60
 ```
 
 ### Logging Configuration
 
-Logs are stored in `logs/requests.log`. Adjust the settings in the configuration file if needed:
-```python
-LOG_CONFIG = {
-    "log_file": "../logs/requests.log",
-    "max_file_size": 10485760,  # 10MB
-    "backup_count": 5,
-    "log_level": "debug",
-    "logging_message": True
-}
+Configure logging settings in `configs/config.yaml`:
+```yaml
+logging:
+  format: "json"  # json or text
+  output:
+    file:
+      path: "logs/llm-bridge.log"
+      max_size: 10485760  # 10MB
+      backup_count: 5
+    console: true
+  level: "info"  # debug, info, warning, error
 ```
 
 ## Development Guidelines
 
-### Project Structure
+### Adding a New Provider
 
-```
-.
-├── src/
-│   ├── main.py           # Main entry point
-│   ├── api/
-│   │   └── router.py     # Request routing handling
-│   ├── config/
-│   │   └── config.py     # Configuration file
-│   └── core/
-│       ├── logger.py     # Logging handler
-│       └── token_counter.py  # Token counting utility
-├── logs/
-│   └── requests.log      # Request logs
-├── .env                  # Environment variables
-└── requirements.txt      # Project dependencies
-```
+1. Create a new adapter in `src/adapters/` that implements the `ModelAdapter` interface
+2. Add the provider configuration to `configs/config.yaml`
+3. Update the Router class to support the new adapter
+4. Add corresponding API key to your `.env` file
 
-### Adding a New Model Provider
+### Error Handling
 
-1. Add the supported models for the provider in `PROVIDER_MODELS`.
-2. Include the provider's configuration in `PROVIDER_CONFIG`.
-3. Ensure the corresponding API key is added to your `.env` file.
-
-## TODOs
-
-Planned features for upcoming versions:
-
-### 1. Usage Statistics
-- [ ] Token counting for multimodal models
-- [ ] Token usage statistics and analysis
-- [ ] Call count and cost statistics per model
-- [ ] Visual charts to display usage
-- [ ] Exportable reports
-
-### 2. WebUI Management Interface
-- [ ] A visual configuration dashboard
-- [ ] Real-time request monitoring
-- [ ] System status display
-
-### 3. Format Conversion and Adaptation
-- [ ] Support other OpenAI-compatible APIs
-- [ ] Adapt to various providers' request/response formats
-- [ ] Unified error handling and status code mapping
-
-### 4. Additional Optimizations
-- [ ] Request rate limiting
-- [ ] Automatic failover
-- [ ] Performance monitoring and alerts
-- [ ] Caching improvements
+The service provides standardized error handling:
+- 400: Bad Request (invalid parameters)
+- 401: Unauthorized (invalid API key)
+- 429: Too Many Requests (rate limit exceeded)
+- 500: Internal Server Error
 
 ## License
 

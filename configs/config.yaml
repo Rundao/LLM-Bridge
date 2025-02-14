@@ -1,0 +1,71 @@
+# 模型提供者配置
+providers:
+  closeai:
+    adapter: openai
+    base_url: "https://api.openai-proxy.org/v1/chat/completions"
+    requires_proxy: false
+    models:
+      gpt-4o:
+        max_tokens: 8192
+        timeout: 120
+      gpt-4o-mini:
+        max_tokens: 4096
+        timeout: 60
+      o3-mini:
+        max_tokens: 4096
+        timeout: 60
+      deepseek-chat:
+        max_tokens: 8192
+        timeout: 120
+      deepseek-reasoner:
+        max_tokens: 8192
+        timeout: 180
+
+  gemini:
+    adapter: openai
+    base_url: "https://generativelanguage.googleapis.com/v1beta/chat/completions"
+    requires_proxy: true
+    models:
+      gemini-2.0-pro-exp-02-05:
+        max_tokens: 8192
+        timeout: 120
+      gemini-2.0-flash-exp:
+        max_tokens: 4096
+        timeout: 60
+      gemini-2.0-flash-thinking-exp:
+        max_tokens: 4096
+        timeout: 60
+
+  deepseek:
+    adapter: openai
+    base_url: "https://api.deepseek.com/chat/completions"
+    requires_proxy: false
+    models:
+      deepseek-chat:
+        max_tokens: 8192
+        timeout: 120
+      deepseek-reasoner:
+        max_tokens: 8192
+        timeout: 180
+
+# 代理配置
+proxy:
+  http: "socks5://127.0.0.1:7890"
+  https: "socks5://127.0.0.1:7890"
+
+# 日志配置
+logging:
+  format: "json"  # 可选值：json, text
+  output:
+    file:
+      path: "../logs/llm-bridge.log"
+      max_size: 10485760  # 10MB
+      backup_count: 5
+    console: true
+  level: "debug"  # 可选值：debug, info, warning, error
+  fields:  # 记录的字段
+    request_id: true
+    timestamp: true
+    client_ip: true
+    model: true
+    latency: true
