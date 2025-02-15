@@ -19,13 +19,13 @@ providers:
             reasoning_effort: "low"  # 可选值: low, medium, high
       o3-mini-medium:
         max_tokens: 4096
-        timeout: 120
+        timeout: 300
         param_config:
           add_params:
             reasoning_effort: "medium"  # 可选值: low, medium, high
       o3-mini-high:
         max_tokens: 4096
-        timeout: 120
+        timeout: 600
         param_config:
           add_params:
             reasoning_effort: "high"  # 可选值: low, medium, high
@@ -52,7 +52,7 @@ providers:
         timeout: 60
       gemini-2.0-flash-thinking-exp:
         max_tokens: 4096
-        timeout: 60
+        timeout: 240
 
   deepseek:
     adapter: openai

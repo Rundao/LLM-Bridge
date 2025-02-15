@@ -28,16 +28,18 @@ class OpenAIAdapter(ModelAdapter):
         if temperature is not None:
             request_data["temperature"] = temperature
             
+        # 获取模型配置但不包含在请求数据中
+        model_config = kwargs.pop('_model_config', {})
+        
         # 添加其他可选参数
         for key, value in kwargs.items():
             if value is not None:
                 request_data[key] = value
                 
-        # 从kwargs中获取模型配置
-        model_config = kwargs.get('_model_config', {})
-        param_config = model_config.get('param_config', {})
-        
-        if param_config:
+        # 如果有模型特定的参数配置，按配置修改参数
+        if 'param_config' in model_config:
+            param_config = model_config['param_config']
+            
             # 1. 更新参数值
             if 'update_params' in param_config:
                 for key, value in param_config['update_params'].items():
