@@ -78,6 +78,19 @@ class Config:
         """获取提供商配置"""
         return self.config.get("providers", {}).get(provider)
     
+    def get_model_config(self, provider: str, model: str) -> Optional[Dict[str, Any]]:
+        """获取模型配置
+        Args:
+            provider: 提供商名称
+            model: 模型名称
+        Returns:
+            Dict[str, Any]: 模型配置，如果未找到返回 None
+        """
+        provider_config = self.get_provider_config(provider)
+        if not provider_config:
+            return None
+        return provider_config.get("models", {}).get(model, {})
+    
     def get_provider_adapter(self, provider: str) -> Optional[str]:
         """获取提供商的适配器名称
         Args:

@@ -13,13 +13,31 @@ providers:
         timeout: 60
       o3-mini:
         max_tokens: 4096
-        timeout: 60
+        timeout: 120
+        param_config:
+          add_params:
+            reasoning_effort: "low"  # 可选值: low, medium, high
+      o3-mini-medium:
+        max_tokens: 4096
+        timeout: 120
+        param_config:
+          add_params:
+            reasoning_effort: "medium"  # 可选值: low, medium, high
+      o3-mini-high:
+        max_tokens: 4096
+        timeout: 120
+        param_config:
+          add_params:
+            reasoning_effort: "high"  # 可选值: low, medium, high
       deepseek-chat:
         max_tokens: 8192
         timeout: 120
       deepseek-reasoner:
         max_tokens: 8192
-        timeout: 180
+        timeout: 600
+        param_config:
+          update_params:
+            temperature: 0.6
 
   gemini:
     adapter: openai
@@ -47,6 +65,11 @@ providers:
       deepseek-reasoner:
         max_tokens: 8192
         timeout: 180
+        param_config:
+          update_params:
+            temperature: 0.6
+          rename_params:
+            max_tokens: "max_reasoning_token"
 
 # 代理配置
 proxy:

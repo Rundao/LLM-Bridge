@@ -176,7 +176,8 @@ llm-bridge/
 
 ### 模型配置
 
-在 `configs/config.yaml` 中配置支持的模型及其设置：
+在 `configs/config.yaml` 中配置支持的模型及其设置。每个模型可以有基本设置和通过 `param_config` 进行的参数定制：
+
 ```yaml
 providers:
   closeai:
@@ -186,10 +187,56 @@ providers:
       gpt-4o:
         max_tokens: 8192
         timeout: 120
-      gpt-4o-mini:
+      o3-mini:
         max_tokens: 4096
         timeout: 60
+        param_config:
+          add_params:
+            reasoning_effort: "medium"  # 添加新参数
+      deepseek-reasoner:
+        max_tokens: 8192
+        timeout: 180
+        param_config:
+          update_params:
+            temperature: 0.6  # 更新参数值
 ```
+
+`param_config` 部分支持四种参数定制方式：
+
+1. **add_params**: 向请求中添加新参数
+   - 使用场景：当模型需要标准 API 之外的额外参数时
+   - 示例：添加模型特定的参数如 `reasoning_effort`
+   ```yaml
+   add_params:
+     reasoning_effort: "medium"  # 可选值：low, medium, high
+   ```
+
+2. **update_params**: 修改已有参数的值
+   - 使用场景：当模型需要特定的参数值以获得最佳性能时
+   - 示例：设置固定的温度值以获得稳定输出
+   ```yaml
+   update_params:
+     temperature: 0.6
+   ```
+
+3. **rename_params**: 修改参数名称
+   - 使用场景：当模型使用不同的参数名称时
+   - 示例：重命名 max_tokens 以匹配模型的 API
+   ```yaml
+   rename_params:
+     max_tokens: "max_reasoning_token"
+   ```
+
+4. **delete_params**: 从请求中删除参数
+   - 使用场景：当某些参数不应该发送给特定模型时
+   - 示例：删除不支持的参数
+   ```yaml
+   delete_params:
+     - "presence_penalty"
+     - "frequency_penalty"
+   ```
+
+参数定制的处理顺序为：update_params → add_params → rename_params → delete_params
 
 ### 日志配置
 

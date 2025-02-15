@@ -116,7 +116,7 @@ class Router:
         model: str,
         api_key: str,
         payload: Dict[str, Any]
-    ) -> Tuple[str, Dict[str, Any]]:
+    ) -> Tuple[str, Dict[str, Any], Dict[str, Any]]:
         """验证请求参数并返回必要的配置信息"""
         # 验证API密钥
         if not self.config.validate_api_key(api_key):
@@ -152,7 +152,10 @@ class Router:
             )
             raise ValueError(f"Model not supported: {model_name}")
         
-        return provider, provider_config
+        # 获取模型配置
+        model_config = self.config.get_model_config(provider, model_name)
+        
+        return provider, provider_config, model_config
     
     async def route_request(
         self,
@@ -164,7 +167,7 @@ class Router:
         if payload.get("stream", False):
             raise ValueError("Use route_request_stream for streaming requests")
         
-        provider, provider_config = await self._validate_request(model, api_key, payload)
+        provider, provider_config, model_config = await self._validate_request(model, api_key, payload)
         _, model_name = self._parse_model_name(model)
         
         # 获取适配器实例
@@ -175,7 +178,8 @@ class Router:
             "messages": payload.get("messages", []),
             "model": model_name,
             "temperature": payload.get("temperature"),
-            "stream": False
+            "stream": False,
+            "_model_config": model_config  # 传递模型配置
         }
         # 添加其他参数，但排除已经设置的
         other_params = {k: v for k, v in payload.items()
@@ -212,7 +216,7 @@ class Router:
         payload: Dict[str, Any]
     ) -> AsyncGenerator[str, None]:
         """处理流式请求"""
-        provider, provider_config = await self._validate_request(model, api_key, payload)
+        provider, provider_config, model_config = await self._validate_request(model, api_key, payload)
         _, model_name = self._parse_model_name(model)
         
         # 获取适配器实例
@@ -223,7 +227,8 @@ class Router:
             "messages": payload.get("messages", []),
             "model": model_name,
             "temperature": payload.get("temperature"),
-            "stream": True
+            "stream": True,
+            "_model_config": model_config  # 传递模型配置
         }
         # 添加其他参数，但排除已经设置的
         other_params = {k: v for k, v in payload.items()

@@ -176,7 +176,8 @@ llm-bridge/
 
 ### Model Configuration
 
-Configure supported models and their settings in `configs/config.yaml`:
+Configure supported models and their settings in `configs/config.yaml`. Each model can have basic settings and parameter customization through `param_config`:
+
 ```yaml
 providers:
   closeai:
@@ -186,10 +187,56 @@ providers:
       gpt-4o:
         max_tokens: 8192
         timeout: 120
-      gpt-4o-mini:
+      o3-mini:
         max_tokens: 4096
         timeout: 60
+        param_config:
+          add_params:
+            reasoning_effort: "medium"  # Add new parameter
+      deepseek-reasoner:
+        max_tokens: 8192
+        timeout: 180
+        param_config:
+          update_params:
+            temperature: 0.6  # Update parameter value
 ```
+
+The `param_config` section supports four types of parameter customization:
+
+1. **add_params**: Add new parameters to the request
+   - Use case: When a model requires additional parameters not in the standard API
+   - Example: Adding a model-specific parameter like `reasoning_effort`
+   ```yaml
+   add_params:
+     reasoning_effort: "medium"  # Values: low, medium, high
+   ```
+
+2. **update_params**: Modify values of existing parameters
+   - Use case: When a model needs specific parameter values for optimal performance
+   - Example: Setting a fixed temperature for consistent output
+   ```yaml
+   update_params:
+     temperature: 0.6
+   ```
+
+3. **rename_params**: Change parameter names
+   - Use case: When a model uses different names for standard parameters
+   - Example: Renaming max_tokens to match model's API
+   ```yaml
+   rename_params:
+     max_tokens: "max_reasoning_token"
+   ```
+
+4. **delete_params**: Remove parameters from the request
+   - Use case: When certain parameters should not be sent to specific models
+   - Example: Removing unsupported parameters
+   ```yaml
+   delete_params:
+     - "presence_penalty"
+     - "frequency_penalty"
+   ```
+
+Parameter customization is processed in this order: update_params → add_params → rename_params → delete_params
 
 ### Logging Configuration
 

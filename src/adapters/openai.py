@@ -33,6 +33,33 @@ class OpenAIAdapter(ModelAdapter):
             if value is not None:
                 request_data[key] = value
                 
+        # 从kwargs中获取模型配置
+        model_config = kwargs.get('_model_config', {})
+        param_config = model_config.get('param_config', {})
+        
+        if param_config:
+            # 1. 更新参数值
+            if 'update_params' in param_config:
+                for key, value in param_config['update_params'].items():
+                    request_data[key] = value
+
+            # 2. 添加新参数
+            if 'add_params' in param_config:
+                for key, value in param_config['add_params'].items():
+                    if key not in request_data:
+                        request_data[key] = value
+
+            # 3. 重命名参数
+            if 'rename_params' in param_config:
+                for old_key, new_key in param_config['rename_params'].items():
+                    if old_key in request_data:
+                        request_data[new_key] = request_data.pop(old_key)
+
+            # 4. 删除参数
+            if 'delete_params' in param_config:
+                for key in param_config['delete_params']:
+                    request_data.pop(key, None)
+                
         return request_data
     
     async def process_response(
