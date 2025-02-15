@@ -1,91 +1,63 @@
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import StreamingResponse
-from api.router import Router
-from core.logger import logger
-from config.config import PROVIDER_MODELS
-import time
-import json
+"""
+LLM Bridge 服务主入口
+提供 HTTP 和 WebSocket API 接口
+"""
+from fastapi import FastAPI, Request, WebSocket
+from core.router import Router
+from core.gateway.http_handler import HTTPHandler
+from core.gateway.websocket_handler import WebSocketHandler
+from infrastructure.logging import logger
+import uuid
 
-app = FastAPI()
+app = FastAPI(
+    title="LLM Bridge",
+    description="大模型 API 转发服务",
+    version="1.0.0"
+)
+
+# 初始化组件
 router = Router()
+http_handler = HTTPHandler(router)
+ws_handler = WebSocketHandler(router)
 
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request):
-    try:
-        # 解析请求
-        payload = await request.json()
-        model = payload.get("model")
-        api_key = request.headers.get("authorization", "").replace("Bearer ", "")
-        stream = payload.get("stream", False)
+    """处理聊天补全请求"""
+    return await http_handler.handle_chat_completion(request)
 
-        # 记录开始时间
-        start_time = time.time()
-
-        # 处理流式响应
-        if stream:
-            async def generate():
-                try:
-                    async for chunk in router.route_request_stream(model, api_key, payload):
-                        if chunk.strip():
-                            # 确保chunk是正确的SSE格式
-                            logger.log_chunk(chunk=chunk, state="Sending")
-                            yield f"{chunk}\n\n"
-                    yield "data: [DONE]\n\n"
-                except Exception as e:
-                    # 确保错误也以SSE格式返回
-                    error_chunk = f"data: {json.dumps({'error': str(e)})}\n\n"
-                    yield error_chunk
-                    yield "data: [DONE]\n\n"
-                    raise
-            
-            return StreamingResponse(generate(), media_type="text/event-stream")
-
-        # 处理普通响应
-        return await router.route_request(model, api_key, payload)
-
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except PermissionError as e:
-        raise HTTPException(status_code=401, detail=str(e))
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, 
-                            detail=f"Internal server error: {str(e)}")
-    
-    
 @app.get("/v1/models")
 async def list_models():
+    """获取可用模型列表"""
+    return await http_handler.handle_models_list()
+
+@app.websocket("/v1/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """处理 WebSocket 连接"""
+    client_id = str(uuid.uuid4())
+    await ws_handler.connect(websocket, client_id)
     try:
-        models_list = []
-        current_time = int(time.time())
-        
-        # 遍历所有provider和其模型
-        for provider, models in PROVIDER_MODELS.items():
-            for model in models:
-                model_id = f"{provider}/{model}"  # 组合模型ID
-                model_obj = {
-                    "id": model_id,
-                    "object": "model",
-                    "created": current_time,
-                    "owned_by": provider
-                }
-                models_list.append(model_obj)
-        
-        # 返回符合OpenAI规范的响应格式
-        return {
-            "object": "list",
-            "data": models_list
-        }
-        
+        await ws_handler.handle_message(websocket, client_id)
     except Exception as e:
-        logger.error(f"Error listing models: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        logger.error(f"WebSocket error: {str(e)}")
+    finally:
+        ws_handler.disconnect(client_id)
+
+@app.on_event("startup")
+async def startup_event():
+    """服务启动时的初始化"""
+    logger.logger.info("LLM Bridge service starting up...")
 
 @app.on_event("shutdown")
 async def shutdown_event():
+    """服务关闭时的清理"""
+    logger.logger.info("LLM Bridge service shutting down...")
     await router.close()
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=1219)
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=1219,
+        log_level="info"
+    )
