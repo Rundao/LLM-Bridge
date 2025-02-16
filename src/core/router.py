@@ -104,12 +104,30 @@ class Router:
         return self.session
     
     def _parse_model_name(self, model: str) -> Tuple[str, str]:
-        """解析模型名称，返回(provider_name, model_name)元组"""
+        """解析模型名称，返回(provider_name, model_name)元组
+        
+        Args:
+            model: 模型名称，格式为 "provider/model" 或 "model"
+                  model 部分可能包含参数标注，如 "model<param>"
+                  
+        Returns:
+            Tuple[str, str]: (provider_name, model_name) 元组
+        """
+        # 删除模型名称中的参数标注
+        def clean_model_name(name: str) -> str:
+            if "<" in name and ">" in name:
+                # 找到最后一个 < 和第一个 > 之间的内容
+                start = name.rfind("<")
+                end = name.find(">", start)
+                if start != -1 and end != -1:
+                    return name[:start] + name[end + 1:]
+            return name
+            
         if "/" in model:
             provider, model_name = model.split("/", 1)
-            return provider, model_name
+            return provider, clean_model_name(model_name)
         # 默认使用 closeai
-        return "closeai", model
+        return "closeai", clean_model_name(model)
     
     async def _validate_request(
         self,
