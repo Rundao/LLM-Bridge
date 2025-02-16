@@ -17,13 +17,13 @@ providers:
         param_config:
           add_params:
             reasoning_effort: "low"  # 可选值: low, medium, high
-      o3-mini-medium:
+      o3-mini<medium>:
         max_tokens: 4096
         timeout: 300
         param_config:
           add_params:
             reasoning_effort: "medium"  # 可选值: low, medium, high
-      o3-mini-high:
+      o3-mini<high>:
         max_tokens: 4096
         timeout: 600
         param_config:
