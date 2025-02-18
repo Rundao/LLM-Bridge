@@ -82,13 +82,33 @@ logging:
   output:
     file:
       path: "../logs/llm-bridge.log"
-      max_size: 10485760  # 10MB
+      max_size: 1000000  # <1MB
       backup_count: 5
     console: true
   level: "debug"  # 可选值：debug, info, warning, error
-  fields:  # 记录的字段
-    request_id: true
-    timestamp: true
-    client_ip: true
-    model: true
-    latency: true
+  
+  # 字段组配置
+  field_groups:
+    # 基础信息组（请求的基本标识信息）
+    basic:
+      enabled: true  # 包含: timestamp, request_id
+    
+    # 调用信息组（API调用相关信息）
+    call:
+      enabled: true  # 包含: provider, model, client_addr
+    
+    # 性能指标组（性能和资源使用相关）
+    metrics:
+      enabled: true  # 包含: duration, latency, input_tokens, output_tokens
+    
+    # 请求内容组（请求的具体内容）
+    request:
+      enabled: false  # 包含: messages, parameters
+    
+    # 响应内容组（响应的具体内容）
+    response:
+      enabled: true  # 包含: response_content, chunk
+    
+    # 错误信息组（错误和异常相关）
+    error:
+      enabled: true  # 包含: status_code, error_message, error_type

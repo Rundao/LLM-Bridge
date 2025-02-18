@@ -78,7 +78,7 @@ class OpenAIAdapter(ModelAdapter):
             raise ValueError("Response missing choices field")
             
         # 标准化响应格式
-        return {
+        response = {
             "id": response.get("id", str(uuid.uuid4())),
             "object": response.get("object", "chat.completion"),
             "created": response.get("created", 0),
@@ -86,6 +86,7 @@ class OpenAIAdapter(ModelAdapter):
             "choices": response["choices"],
             "usage": response.get("usage", {})
         }
+        return response
     
     async def process_stream(
         self,
