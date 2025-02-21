@@ -96,10 +96,10 @@ class Router:
         """
         if isinstance(error, LLMBridgeError):
             status_code = error.status_code
-            # 如果有详细信息，将其添加到错误消息中
-            error_message = str(error)
+            # 构建结构化的错误信息
+            error_message = {"message": str(error)}
             if error.details:
-                error_message = f"{error_message} (Details: {json.dumps(error.details)})"
+                error_message["details"] = error.details
         else:
             status_code = 500
             error_message = str(error)
@@ -381,12 +381,18 @@ class Router:
             ) as response:
                 if response.status != 200:
                     error_text = await response.text()
+                    # 尝试解析错误响应为结构化数据
+                    try:
+                        error_data = json.loads(error_text)
+                    except json.JSONDecodeError:
+                        error_data = {"message": error_text}
+
                     # 记录错误日志
                     logger.log_request_error(
                         provider=provider,
                         model=model_name,
                         status_code=response.status,
-                        error_message=error_text,
+                        error_message=error_data,
                         messages=payload.get("messages", []),
                         request_id=request_id,
                         client_addr=client_addr
@@ -499,12 +505,19 @@ class Router:
                 if response.status != 200:
                     error_text = await response.text()
                     duration = time.time() - start_time
+                    
+                    # 尝试解析错误响应为结构化数据
+                    try:
+                        error_data = json.loads(error_text)
+                    except json.JSONDecodeError:
+                        error_data = {"message": error_text}
+                        
                     # 记录错误日志
                     logger.log_request_error(
                         provider=provider,
                         model=model_name,
                         status_code=response.status,
-                        error_message=error_text,
+                        error_message=error_data,
                         messages=payload.get("messages", []),
                         request_id=request_id,
                         client_addr=client_addr

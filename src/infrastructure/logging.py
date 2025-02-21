@@ -16,11 +16,23 @@ class JsonFormatter(logging.Formatter):
     
     def format(self, record: logging.LogRecord) -> str:
         """格式化日志记录"""
-        log_data = {
+        if isinstance(record.msg, dict):
+            # 如果消息已经是字典，直接使用
+            log_data = record.msg
+        else:
+            # 否则尝试解析JSON字符串
+            try:
+                log_data = json.loads(record.msg)
+            except (json.JSONDecodeError, TypeError):
+                # 如果不是JSON，创建基本的日志数据
+                log_data = {"message": record.getMessage()}
+        
+        # 添加基本日志字段
+        log_data.update({
             "timestamp": datetime.fromtimestamp(record.created).isoformat(),
             "level": record.levelname,
-            "message": record.getMessage()
-        }
+        })
+        
         return json.dumps(log_data, ensure_ascii=False)
 
 class StructuredLogger:
@@ -139,7 +151,7 @@ class StructuredLogger:
                 "client_addr": client_addr
             }
         )
-        self.logger.info(json.dumps(log_data, ensure_ascii=False))
+        self.logger.info(log_data)
     
     def log_request_complete(
         self,
@@ -172,7 +184,7 @@ class StructuredLogger:
                 "client_addr": client_addr
             }
         )
-        self.logger.info(json.dumps(log_data, ensure_ascii=False))
+        self.logger.info(log_data)
     
     def log_request_error(
         self,
@@ -197,7 +209,7 @@ class StructuredLogger:
                 "client_addr": client_addr
             }
         )
-        self.logger.error(json.dumps(log_data, ensure_ascii=False))
+        self.logger.error(log_data)
     
     def log_chunk(
         self,
@@ -234,7 +246,7 @@ class StructuredLogger:
                 "client_addr": client_addr
             }
         )
-        self.logger.debug(json.dumps(log_data, ensure_ascii=False))
+        self.logger.debug(log_data)
         
     def log_message(
         self,
@@ -255,7 +267,7 @@ class StructuredLogger:
                 "client_addr": client_addr
             }
         )
-        self.logger.info(json.dumps(log_data, ensure_ascii=False))
+        self.logger.info(log_data)
 
 # 创建全局日志实例
 logger = StructuredLogger()
