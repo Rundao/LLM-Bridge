@@ -85,7 +85,7 @@ logging:
       max_size: 1000000  # <1MB
       backup_count: 5
     console: true
-  level: "debug"  # 可选值：debug, info, warning, error
+  level: "info"  # 可选值：debug, info, warning, error
   
   # 字段组配置
   field_groups:

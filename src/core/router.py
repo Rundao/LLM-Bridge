@@ -381,6 +381,18 @@ class Router:
             ) as response:
                 if response.status != 200:
                     error_text = await response.text()
+                    # 记录错误日志
+                    logger.log_request_error(
+                        provider=provider,
+                        model=model_name,
+                        status_code=response.status,
+                        error_message=error_text,
+                        messages=payload.get("messages", []),
+                        request_id=request_id,
+                        client_addr=client_addr
+                    )
+                    # 更新统计信息
+                    self._update_stats(provider, False)
                     # 返回统一格式的错误信息
                     response_data = f"data: {json.dumps({'error': {'message': error_text, 'type': 'ProviderError', 'code': response.status}})}"
                     return response_data
@@ -487,6 +499,17 @@ class Router:
                 if response.status != 200:
                     error_text = await response.text()
                     duration = time.time() - start_time
+                    # 记录错误日志
+                    logger.log_request_error(
+                        provider=provider,
+                        model=model_name,
+                        status_code=response.status,
+                        error_message=error_text,
+                        messages=payload.get("messages", []),
+                        request_id=request_id,
+                        client_addr=client_addr
+                    )
+                    # 记录请求完成
                     logger.log_request_complete(
                         provider=provider,
                         model=model,
@@ -500,6 +523,8 @@ class Router:
                         request_id=request_id,
                         client_addr=client_addr
                     )
+                    # 更新统计信息
+                    self._update_stats(provider, False)
                     # 返回统一格式的错误信息
                     response_data = f"data: {json.dumps({'error': {'message': error_text, 'type': 'ProviderError', 'code': response.status}})}\n\n"
                     yield response_data
@@ -573,3 +598,14 @@ class Router:
                     "code": 500
                 }
             })
+
+    async def close(self):
+        """关闭Router并清理资源"""
+        # 关闭HTTP会话
+        if self.session and not self.session.closed:
+            await self.session.close()
+            self.session = None
+            
+        # 清理适配器实例
+        self.adapter_instances.clear()
+        self.adapter_locks.clear()
